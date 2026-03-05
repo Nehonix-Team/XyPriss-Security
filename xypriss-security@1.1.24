@@ -1,0 +1,4 @@
+
+> xypriss-security@1.1.25 build
+> rimraf dist && tsc && tsc-alias
+
