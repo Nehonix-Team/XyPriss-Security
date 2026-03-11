@@ -7,7 +7,7 @@ import { HashOptions, HMACAlgorithm } from "../types";
 import { Random } from "./Random";
 import { SecureBuffer } from "./SecureBuffer";
 import { stringToBuffer } from "../utils";
-
+ 
 /**
  * ### Hash Class
  *

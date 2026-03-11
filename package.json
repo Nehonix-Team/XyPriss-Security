@@ -1,6 +1,6 @@
 {
   "name": "xypriss-security",
-  "version": "2.0.6",
+  "version": "2.0.7",
   "description": "Advanced High-Performance Security Framework powered by a Go Core. Military-grade encryption, post-quantum resilience, and fortified data structures.",
   "author": {
     "name": "NEHONIX",

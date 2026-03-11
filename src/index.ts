@@ -22,3 +22,4 @@ export * from "./components/index";
 // --- 3. UTILITIES ---
 export * from "./utils/index";
 export * from "./components/encryption/index";
+export * from "./components/serializer";
