@@ -2,119 +2,120 @@ import { promisify } from "util";
 import { existsSync, mkdirSync, statSync, readdirSync } from "fs";
 import path from "path";
 import zlib from "zlib";
-import { Bridge } from "../../core/bridge";
+import { SecureRandom } from "../../core";
+import * as crypto from "crypto";
 
 /**
  * Ensure directory exists for file cache operations
  */
 export const ensureDirectoryExists = async (
-  filePath: string,
+    filePath: string
 ): Promise<void> => {
-  const dir = path.dirname(filePath);
-  if (!existsSync(dir)) {
-    mkdirSync(dir, { recursive: true });
-  }
+    const dir = path.dirname(filePath);
+    if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+    }
 };
 
 /**
  * Encrypt data for file storage
  */
 export const encryptFileData = (
-  data: string,
-  key?: Buffer,
+    data: string,
+    key?: Buffer
 ): {
-  encrypted: string;
-  iv: string;
-  authTag: string;
-  key: string;
+    encrypted: string;
+    iv: string;
+    authTag: string;
+    key: string;
 } => {
-  const encryptionKey = key || Buffer.from(Bridge.getRandomBytes(32));
+    const encryptionKey = key || SecureRandom.getRandomBytes(32);
+    const iv = SecureRandom.getRandomBytes(16);
 
-  const encHex = Bridge.encryptRaw(
-    new TextEncoder().encode(data),
-    encryptionKey,
-    "aes",
-  );
-  if (encHex.startsWith("error:")) throw new Error(encHex);
+    const cipher = crypto.createCipheriv("aes-256-gcm", encryptionKey, iv);
+    let encrypted = cipher.update(data, "utf8", "base64");
+    encrypted += cipher.final("base64");
 
-  const [ivHex, tagHex, dataHex] = encHex.split(":");
+    const authTag = cipher.getAuthTag();
 
-  return {
-    encrypted: dataHex,
-    iv: ivHex,
-    authTag: tagHex,
-    key: encryptionKey.toString("base64"),
-  };
+    return {
+        encrypted,
+        iv: iv.toString("base64"),
+        authTag: authTag.toString("base64"),
+        key: encryptionKey.toString("base64"),
+    };
 };
 
 /**
  * Decrypt data from file storage
  */
 export const decryptFileData = (
-  encrypted: string,
-  iv: string,
-  authTag: string,
-  key: string,
+    encrypted: string,
+    iv: string,
+    authTag: string,
+    key: string
 ): string => {
-  const keyBuffer = Buffer.from(key, "base64");
+    const keyBuffer = Buffer.from(key, "base64");
+    const ivBuffer = Buffer.from(iv, "base64");
+    const authTagBuffer = Buffer.from(authTag, "base64");
 
-  // Format parts to reconstruct "nonce:tag:ciphertext" in hex format
-  const partsStr = `${iv}:${authTag}:${encrypted}`;
+    const decipher = crypto.createDecipheriv(
+        "aes-256-gcm",
+        keyBuffer,
+        ivBuffer
+    );
+    decipher.setAuthTag(authTagBuffer);
 
-  const decryptedHex = Bridge.decryptRaw(partsStr, keyBuffer, "aes");
-  if (decryptedHex.startsWith("error:")) throw new Error(decryptedHex);
+    let decrypted = decipher.update(encrypted, "base64", "utf8");
+    decrypted += decipher.final("utf8");
 
-  // Convert hex bytes back to string
-  const decMatches = decryptedHex.match(/.{1,2}/g) || [];
-  const bytes = new Uint8Array(decMatches.map((byte) => parseInt(byte, 16)));
-
-  return new TextDecoder().decode(bytes);
+    return decrypted;
 };
 
 /**
  * Compress data if beneficial
  */
 export const compressFileData = async (
-  data: string,
+    data: string
 ): Promise<{
-  data: string;
-  compressed: boolean;
+    data: string;
+    compressed: boolean;
 }> => {
-  if (data.length < 1024) {
-    // Don't compress small data
-    return { data, compressed: false };
-  }
-
-  try {
-    const deflate = promisify(zlib.deflate);
-    const compressed = await deflate(Buffer.from(data, "utf8"));
-    const compressedString = compressed.toString("base64");
-
-    if (compressedString.length < data.length * 0.9) {
-      return { data: compressedString, compressed: true };
+    if (data.length < 1024) {
+        // Don't compress small data
+        return { data, compressed: false };
     }
-  } catch (error) {
-    console.warn("File compression failed:", error);
-  }
 
-  return { data, compressed: false };
+    try {
+        const deflate = promisify(zlib.deflate);
+        const compressed = await deflate(Buffer.from(data, "utf8"));
+        const compressedString = compressed.toString("base64");
+
+        if (compressedString.length < data.length * 0.9) {
+            return { data: compressedString, compressed: true };
+        }
+    } catch (error) {
+        console.warn("File compression failed:", error);
+    }
+
+    return { data, compressed: false };
 };
 
 /**
  * Decompress data
  */
 export const decompressFileData = async (
-  data: string,
-  compressed: boolean,
+    data: string,
+    compressed: boolean
 ): Promise<string> => {
-  if (!compressed) return data;
+    if (!compressed) return data;
 
-  try {
-    const inflate = promisify(zlib.inflate);
-    const decompressed = await inflate(Buffer.from(data, "base64"));
-    return decompressed.toString("utf8");
-  } catch (error) {
-    console.error("File decompression failed:", error);
-    throw new Error("Data decompression failed");
-  }
+    try {
+        const inflate = promisify(zlib.inflate);
+        const decompressed = await inflate(Buffer.from(data, "base64"));
+        return decompressed.toString("utf8");
+    } catch (error) {
+        console.error("File decompression failed:", error);
+        throw new Error("Data decompression failed");
+    }
 };

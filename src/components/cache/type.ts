@@ -1,3 +1,5 @@
+import type { CacheStats as SecurityCacheStats } from "xypriss-security";
+
 /**
  * Enhanced cache configuration
  */
@@ -85,7 +87,7 @@ export interface SecureCacheConfig {
  * Enhanced cache statistics
  */
 export interface EnhancedCacheStats {
-  memory?: any; // Added to fix TS errors, will be typed properly based on usage
+  memory: SecurityCacheStats;
   redis?: {
     connected: boolean;
     commandsProcessed: number;

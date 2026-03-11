@@ -1,9 +1,37 @@
-/***************************************************************************
- * XyPriss Security - Modular Component Registry
- *
- * @author NEHONIX (iDevo - https://github.com/iDevo-ll)
- * @license Nehonix Open Source License (NOSL)
- ****************************************************************************/
+/**
+ * Security Module
+ * 
+ * This module provides advanced security features that go beyond basic
+ * cryptographic operations, making the library more robust against various
+ * attacks and security threats.
+ */ 
 
-// Advanced Caching System
-export * from "./cache"; 
+// Side-Channel Attack Protection
+export * from './side-channel';
+
+// Memory-Hard Key Derivation
+export * from './memory-hard';
+
+// Post-Quantum Cryptography
+export * from './post-quantum';
+
+// Secure Memory Management
+export * from './secure-memory';
+
+// Entropy Augmentation
+export * from './entropy-augmentation';
+
+// Canary Tokens
+export * from './canary-tokens';
+
+// Cryptographic Attestation
+export * from './attestation';
+
+// Runtime Security Verification
+export * from './runtime-verification';
+
+// Secure Serialization
+export * from './secure-serialization';
+
+// Tamper-Evident Logging
+export * from './tamper-evident-logging';
