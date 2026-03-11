@@ -3,7 +3,7 @@
  */
 
 import { SafeSerializer } from "./safe-serializer";
-
+ 
 // Ultra-fast serialization for performance-critical paths
 export const fastStringify = (obj: any): string =>
   SafeSerializer.stringify(obj, { fastMode: true, maxLength: 1000 });

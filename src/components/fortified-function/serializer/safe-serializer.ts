@@ -5,7 +5,7 @@
 
 import { SafeSerializationOptions } from "./types";
 
-export class SafeSerializer {
+export class SafeSerializer {  
   private static readonly DEFAULT_OPTIONS: Required<SafeSerializationOptions> =
     {
       maxDepth: 10,
