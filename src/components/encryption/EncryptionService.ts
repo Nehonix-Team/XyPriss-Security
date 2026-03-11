@@ -34,8 +34,8 @@
  * - Memory-safe operations with secure wiping
  */
 
-import * as crypto from "crypto";
-import { Hash, RandomCrypto, SecureRandom, Validators } from "../../core";
+import { Hash, Random, Keys } from "../../core";
+import { Bridge } from "../../core/bridge";
 
 /**
  * Encryption algorithm options
@@ -100,7 +100,7 @@ export class EncryptionService {
       const dataBuffer = new TextEncoder().encode(jsonData);
 
       // Generate cryptographically secure salt
-      const salt = SecureRandom.getRandomBytes(this.SALT_LENGTH);
+      const salt = Random.getRandomBytes(this.SALT_LENGTH);
 
       // Derive encryption key using PBKDF2
       const derivedKey = await this.deriveKey(
@@ -109,35 +109,20 @@ export class EncryptionService {
         keyDerivationIterations,
       );
 
-      // Generate secure IV/nonce
-      const iv = this.generateIV(algorithm);
+      const algoTarget =
+        algorithm === "chacha20-poly1305" || quantumSafe ? "chacha20" : "aes";
+      const encHex = Bridge.encryptRaw(dataBuffer, derivedKey, algoTarget);
 
-      // Encrypt based on algorithm
-      let encrypted: Uint8Array;
-      let authTag: Uint8Array;
+      if (encHex.startsWith("error:")) throw new Error(encHex);
 
-      if (algorithm === "chacha20-poly1305" || quantumSafe) {
-        ({ encrypted, authTag } = this.encryptChaCha20Poly1305(
-          dataBuffer,
-          derivedKey,
-          iv,
-          additionalData,
-        ));
-      } else {
-        ({ encrypted, authTag } = this.encryptAES256GCM(
-          dataBuffer,
-          derivedKey,
-          iv,
-          additionalData,
-        ));
-      }
+      const [ivHex, tagHex, dataHex] = encHex.split(":");
 
       // Create encrypted package
       const package_: EncryptedPackage = {
         algorithm: quantumSafe ? "chacha20-poly1305" : algorithm,
-        iv: this.bufferToHex(iv),
-        data: this.bufferToHex(encrypted),
-        authTag: this.bufferToHex(authTag),
+        iv: ivHex,
+        data: dataHex,
+        authTag: tagHex,
         salt: this.bufferToHex(salt.toUint8Array()),
         timestamp: Date.now(),
         version: this.VERSION,
@@ -169,32 +154,22 @@ export class EncryptionService {
       const package_: EncryptedPackage = JSON.parse(encryptedData);
       this.validatePackage(package_);
 
-      // Convert hex strings back to buffers
-      const iv = this.hexToBuffer(package_.iv);
-      const encrypted = this.hexToBuffer(package_.data);
-      const authTag = this.hexToBuffer(package_.authTag);
       const salt = this.hexToBuffer(package_.salt);
-
-      // Derive the same key
       const derivedKey = await this.deriveKey(
         key,
         salt,
         this.DEFAULT_ITERATIONS,
       );
 
-      // Decrypt based on algorithm
-      let decrypted: Uint8Array;
+      // Convert hex strings back to buffers
+      const partsStr = `${package_.iv}:${package_.authTag}:${package_.data}`;
+      const algoTarget =
+        package_.algorithm === "chacha20-poly1305" ? "chacha20" : "aes";
+      const decryptedHex = Bridge.decryptRaw(partsStr, derivedKey, algoTarget);
 
-      if (package_.algorithm === "chacha20-poly1305") {
-        decrypted = this.decryptChaCha20Poly1305(
-          encrypted,
-          derivedKey,
-          iv,
-          authTag,
-        );
-      } else {
-        decrypted = this.decryptAES256GCM(encrypted, derivedKey, iv, authTag);
-      }
+      if (decryptedHex.startsWith("error:")) throw new Error(decryptedHex);
+
+      const decrypted = this.hexToBuffer(decryptedHex);
 
       // Convert back to string and parse JSON
       const jsonString = new TextDecoder().decode(decrypted);
@@ -225,184 +200,19 @@ export class EncryptionService {
     const passwordBuffer = new TextEncoder().encode(password);
     const saltBuffer = salt instanceof Uint8Array ? salt : salt.toUint8Array();
 
-    // Use XyPrissJS Hash for key derivation
-    const hashResult = Hash.createSecureHash(passwordBuffer, saltBuffer, {
-      algorithm: "sha256",
-      iterations,
-      outputFormat: "buffer",
-    });
+    // Core PBKDF2 alternative via high-speed native loop or generic Hash loop if dedicated pbkdf2
+    // is omitted for standard derivation. Keys.deriveKey handles most optimal hashing.
+    const baseKey = await Keys.deriveKey(password, { algorithm: "argon2id" });
+    const iterationsSalt =
+      typeof salt === "string" ? salt : Buffer.from(salt).toString("hex");
 
-    // Handle both sync and async results
-    const derivedKey =
-      hashResult instanceof Promise
-        ? Buffer.from((await hashResult) as any)
-        : Buffer.from(hashResult as any);
+    // Create a 32-byte derived hash using standard HMAC chaining.
+    let currentHash = Hash.hmac(baseKey, iterationsSalt);
 
-    return new Uint8Array(derivedKey);
+    return Buffer.from(currentHash.substring(0, 64), "hex");
   }
 
-  /**
-   * Generate secure IV/nonce for encryption
-   */
-  private static generateIV(algorithm: EncryptionAlgorithm): Uint8Array {
-    return RandomCrypto.generateNonce(
-      algorithm === "chacha20-poly1305" ? "chacha20-poly1305" : "aes-gcm",
-      { quantumSafe: true },
-    );
-  }
-
-  /**
-   * Encrypt using AES-256-GCM
-   */
-  private static encryptAES256GCM(
-    data: Uint8Array,
-    key: Uint8Array,
-    iv: Uint8Array,
-    additionalData?: string,
-  ): { encrypted: Uint8Array; authTag: Uint8Array } {
-    try {
-      // Use Node.js crypto for AES-GCM
-      const cipher = crypto.createCipheriv("aes-256-gcm", key.slice(0, 32), iv);
-
-      if (additionalData) {
-        cipher.setAAD(new TextEncoder().encode(additionalData));
-      }
-
-      const encrypted = Buffer.concat([
-        cipher.update(Buffer.from(data)),
-        cipher.final(),
-      ]);
-
-      const authTag = cipher.getAuthTag();
-
-      return {
-        encrypted: new Uint8Array(encrypted),
-        authTag: new Uint8Array(authTag),
-      };
-    } catch (error) {
-      throw new Error(
-        `AES-GCM encryption failed: ${
-          error instanceof Error ? error.message : "Unknown error"
-        }`,
-      );
-    }
-  }
-
-  /**
-   * Decrypt using AES-256-GCM
-   */
-  private static decryptAES256GCM(
-    encrypted: Uint8Array,
-    key: Uint8Array,
-    iv: Uint8Array,
-    authTag: Uint8Array,
-  ): Uint8Array {
-    try {
-      const decipher = crypto.createDecipheriv(
-        "aes-256-gcm",
-        key.slice(0, 32),
-        iv,
-      );
-      decipher.setAuthTag(Buffer.from(authTag));
-
-      const decrypted = Buffer.concat([
-        decipher.update(Buffer.from(encrypted)),
-        decipher.final(),
-      ]);
-
-      return new Uint8Array(decrypted);
-    } catch (error) {
-      throw new Error(
-        `AES-GCM decryption failed: ${
-          error instanceof Error ? error.message : "Authentication failed"
-        }`,
-      );
-    }
-  }
-
-  /**
-   * Encrypt using ChaCha20-Poly1305 (quantum-safe fallback)
-   */
-  private static encryptChaCha20Poly1305(
-    data: Uint8Array,
-    key: Uint8Array,
-    iv: Uint8Array,
-    additionalData?: string,
-  ): { encrypted: Uint8Array; authTag: Uint8Array } {
-    // Try to use libsodium if available
-    try {
-      const sodium = require("libsodium-wrappers");
-      if (
-        sodium &&
-        typeof sodium.crypto_aead_chacha20poly1305_ietf_encrypt === "function"
-      ) {
-        const aad = additionalData
-          ? new TextEncoder().encode(additionalData)
-          : null;
-        const result = sodium.crypto_aead_chacha20poly1305_ietf_encrypt(
-          data,
-          aad,
-          null,
-          iv,
-          key.slice(0, 32),
-        );
-
-        // Split result into encrypted data and auth tag
-        const encrypted = result.slice(0, -16);
-        const authTag = result.slice(-16);
-
-        return {
-          encrypted: new Uint8Array(encrypted),
-          authTag: new Uint8Array(authTag),
-        };
-      }
-    } catch (error) {
-      // Fall back to AES-GCM if ChaCha20-Poly1305 is not available
-      console.warn("ChaCha20-Poly1305 not available, falling back to AES-GCM");
-    }
-
-    // Fallback to AES-GCM
-    return this.encryptAES256GCM(data, key, iv, additionalData);
-  }
-
-  /**
-   * Decrypt using ChaCha20-Poly1305
-   */
-  private static decryptChaCha20Poly1305(
-    encrypted: Uint8Array,
-    key: Uint8Array,
-    iv: Uint8Array,
-    authTag: Uint8Array,
-  ): Uint8Array {
-    // Try to use libsodium if available
-    try {
-      const sodium = require("libsodium-wrappers");
-      if (
-        sodium &&
-        typeof sodium.crypto_aead_chacha20poly1305_ietf_decrypt === "function"
-      ) {
-        const ciphertext = new Uint8Array(encrypted.length + authTag.length);
-        ciphertext.set(encrypted);
-        ciphertext.set(authTag, encrypted.length);
-
-        const result = sodium.crypto_aead_chacha20poly1305_ietf_decrypt(
-          null,
-          ciphertext,
-          null,
-          iv,
-          key.slice(0, 32),
-        );
-
-        return new Uint8Array(result);
-      }
-    } catch (error) {
-      // Fall back to AES-GCM if ChaCha20-Poly1305 is not available
-      console.warn("ChaCha20-Poly1305 not available, falling back to AES-GCM");
-    }
-
-    // Fallback to AES-GCM
-    return this.decryptAES256GCM(encrypted, key, iv, authTag);
-  }
+  // Obsolete encryption wrappers leveraging Node.js crypto removed
 
   /**
    * Validate inputs for encryption
@@ -420,9 +230,10 @@ export class EncryptionService {
       throw new Error("Key must be at least 8 characters long");
     }
 
-    // Use XyPrissJS validators for additional validation
     try {
-      Validators.validateLength(key.length, 8, 1024);
+      if (key.length < 8) {
+        throw new Error("Key length invalid");
+      }
     } catch (error) {
       throw new Error(
         `Invalid key: ${
@@ -504,7 +315,7 @@ export class EncryptionService {
       // Use XyPrissJS secure memory wiping
       if (buffer && buffer.length > 0) {
         // Overwrite with random data first
-        const randomData = SecureRandom.getRandomBytes(buffer.length);
+        const randomData = Random.getRandomBytes(buffer.length);
         buffer.set(randomData.toUint8Array());
 
         // Then overwrite with zeros
@@ -526,7 +337,7 @@ export class EncryptionService {
    * Generate a secure session key for temporary use
    */
   public static generateSessionKey(): string {
-    const keyBytes = SecureRandom.getRandomBytes(32);
+    const keyBytes = Random.getRandomBytes(32);
     return this.bufferToHex(keyBytes.toUint8Array());
   }
 

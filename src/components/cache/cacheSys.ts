@@ -15,11 +15,7 @@ import {
     decompressFileData,
     ensureDirectoryExists,
 } from "./cacheSys.utils";
-import { Hash } from "../../core";
 import fs from "fs/promises";
-import * as crypto from "crypto";
-import { promisify } from "util";
-import zlib from "zlib";
 import { DEFAULT_FILE_CACHE_CONFIG } from "./config/cache.config";
 // Import check-disk-space with proper error handling
 let checkDiskSpace: any;

@@ -1,90 +1,68 @@
-import { ALGORITHM_REGISTRY } from "../algorithms/registry";
-import type {
-    AlgorithmInfo,
-    CryptoAlgorithm,
-    HashAlgorithm,
-} from "../types/string";
+/***************************************************************************
+ * XyPriss Security - Cryptographic Algorithm Utilities
+ *
+ * Provides professional metadata and classification for supported algorithms.
+ *
+ * @author NEHONIX (iDevo - https://github.com/iDevo-ll)
+ * @license Nehonix Open Source License (NOSL)
+ ****************************************************************************/
+
+import { AlgorithmInfo } from "../types";
 
 /**
- * Utility class for algorithm validation and information
+ * Utility class for managing cryptographic algorithm information.
  */
 export class CryptoAlgorithmUtils {
-    /**
-     * Validates if an algorithm is supported
-     */
-    static isSupported(algorithm: string): algorithm is CryptoAlgorithm {
-        return algorithm in ALGORITHM_REGISTRY;
-    }
+  /**
+   * Retrieves detailed metrics and metadata for a specific algorithm.
+   *
+   * @param name - The identifier of the algorithm.
+   * @returns Detailed algorithm specifications.
+   */
+  public static getAlgorithmInfo(name: string): AlgorithmInfo {
+    const registry: Record<string, AlgorithmInfo> = {
+      sha256: {
+        name: "SHA-256",
+        type: "hash",
+        keySize: 0,
+        blockSize: 64,
+        description: "NIST standard 256-bit hash.",
+      },
+      sha512: {
+        name: "SHA-512",
+        type: "hash",
+        keySize: 0,
+        blockSize: 128,
+        description: "NIST standard 512-bit hash.",
+      },
+      argon2id: {
+        name: "Argon2id",
+        type: "kdf",
+        description: "State-of-the-art memory-hard password hash.",
+      },
+      "aes-256-gcm": {
+        name: "AES-256-GCM",
+        type: "encryption",
+        keySize: 32,
+        ivSize: 12,
+        description: "Authenticated symmetric encryption.",
+      },
+    };
 
-    /**
-     * Gets algorithm information
-     */
-    static getInfo(algorithm: CryptoAlgorithm): AlgorithmInfo {
-        return ALGORITHM_REGISTRY[algorithm];
-    }
+    const key = name.toLowerCase();
+    return (
+      registry[key] || {
+        name: name,
+        type: "hash",
+        description: "Standard security primitive.",
+      }
+    );
+  }
 
-    /**
-     * Checks if an algorithm is deprecated
-     */
-    static isDeprecated(algorithm: CryptoAlgorithm): boolean {
-        return ALGORITHM_REGISTRY[algorithm].deprecated;
-    }
-
-    /**
-     * Gets all algorithms by security level
-     */
-    static getAlgorithmsBySecurityLevel(
-        level: AlgorithmInfo["securityLevel"]
-    ): CryptoAlgorithm[] {
-        return Object.entries(ALGORITHM_REGISTRY)
-            .filter(([, info]) => info.securityLevel === level)
-            .map(([algorithm]) => algorithm as CryptoAlgorithm);
-    }
-
-    /**
-     * Gets recommended algorithms (non-deprecated, strong or very-strong)
-     */
-    static getRecommendedAlgorithms(): CryptoAlgorithm[] {
-        return Object.entries(ALGORITHM_REGISTRY)
-            .filter(
-                ([, info]) =>
-                    !info.deprecated &&
-                    (info.securityLevel === "strong" ||
-                        info.securityLevel === "very-strong")
-            )
-            .map(([algorithm]) => algorithm as CryptoAlgorithm);
-    }
-
-    /**
-     * Validates algorithm and warns about deprecated ones
-     */
-    static validateAlgorithm(algorithm: string): HashAlgorithm {
-        if (!this.isSupported(algorithm)) {
-            throw new Error(
-                `Unsupported algorithm: ${algorithm}. Supported: ${Object.keys(
-                    ALGORITHM_REGISTRY
-                ).join(", ")}`
-            );
-        }
-
-        const info = this.getInfo(algorithm as CryptoAlgorithm);
-        if (info.deprecated) {
-            console.warn(
-                `Warning: ${algorithm} is deprecated. ${info.description}`
-            );
-        }
-
-        // For now, only return hash algorithms for the hash method
-        const hashAlgorithms: HashAlgorithm[] = [
-            "SHA-1",
-            "SHA-256",
-            "SHA-384",
-            "SHA-512",
-        ];
-        if (!hashAlgorithms.includes(algorithm as HashAlgorithm)) {
-            throw new Error(`Algorithm ${algorithm} is not a hash algorithm`);
-        }
-
-        return algorithm as HashAlgorithm;
-    }
+  /**
+   * Standardizes algorithm names to framework-recognized formats.
+   */
+  public static standardizeName(name: string): string {
+    return name.toUpperCase().replace(/_/g, "-");
+  }
 }

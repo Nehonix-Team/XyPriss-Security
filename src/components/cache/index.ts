@@ -34,21 +34,21 @@ import { Hash } from "../../core";
 
 // Type definitions
 import type {
-    CachedData,
-    CacheStats,
-    CacheOptions,
-    FileCacheOptions,
-    FileCacheStats,
-    FileCacheMetadata,
-    FileCacheCleanupOptions,
-    FileCacheStrategy,
+  CachedData,
+  CacheStats,
+  CacheOptions,
+  FileCacheOptions,
+  FileCacheStats,
+  FileCacheMetadata,
+  FileCacheCleanupOptions,
+  FileCacheStrategy,
 } from "./types/cache.type";
 
 // UFSIMC type definitions
 import {
-    UltraStats,
-    UltraCacheOptions,
-    UltraMemoryCacheEntry,
+  UltraStats,
+  UltraCacheOptions,
+  UltraMemoryCacheEntry,
 } from "./types/UFSIMC.type";
 
 // Cache implementation
@@ -58,12 +58,12 @@ import { UltraFastSecureInMemoryCache } from "./UFSIMC";
 // Configuration
 import { DEFAULT_FILE_CACHE_CONFIG } from "./config/cache.config";
 export {
-    CONFIG as DEFAULT_CACHE_CONFIG,
-    DEFAULT_FILE_CACHE_CONFIG,
+  CONFIG as DEFAULT_CACHE_CONFIG,
+  DEFAULT_FILE_CACHE_CONFIG,
 } from "./config/cache.config";
 import { FileCache } from "./cacheSys";
 import { SecureCacheClient } from "./SCC";
-import func from "../fortified-function";
+// Note: func (fortified-function) will be re-implemented separately
 
 // SecureCacheAdapter type will be imported dynamically when needed
 
@@ -250,17 +250,17 @@ export { FileCache };
  * @since 4.2.2
  */
 export type {
-    CachedData,
-    CacheStats,
-    CacheOptions,
-    FileCacheOptions,
-    FileCacheStats,
-    FileCacheMetadata,
-    FileCacheCleanupOptions,
-    FileCacheStrategy,
-    UltraStats,
-    UltraCacheOptions,
-    UltraMemoryCacheEntry,
+  CachedData,
+  CacheStats,
+  CacheOptions,
+  FileCacheOptions,
+  FileCacheStats,
+  FileCacheMetadata,
+  FileCacheCleanupOptions,
+  FileCacheStrategy,
+  UltraStats,
+  UltraCacheOptions,
+  UltraMemoryCacheEntry,
 };
 
 // ========================================
@@ -307,58 +307,58 @@ export type {
  * @since 4.2.2
  */
 export const generateFilePath = (
-    key: string,
-    options: Partial<FileCacheOptions> = {}
+  key: string,
+  options: Partial<FileCacheOptions> = {},
 ): string => {
-    const config = { ...DEFAULT_FILE_CACHE_CONFIG, ...options };
-    const sanitized = Hash.create(key, { outputFormat: "hex" }) as string;
+  const config = { ...DEFAULT_FILE_CACHE_CONFIG, ...options };
+  const sanitized = Hash.create(key, { outputFormat: "hex" }) as string;
 
-    let filePath: string;
+  let filePath: string;
 
-    switch (config.namingStrategy) {
-        case "hierarchical":
-            const dir = sanitized.substring(0, 2);
-            const subdir = sanitized.substring(2, 4);
-            filePath = path.resolve(
-                config.directory,
-                dir,
-                subdir,
-                `${sanitized}${config.extension}`
-            );
-            break;
+  switch (config.namingStrategy) {
+    case "hierarchical":
+      const dir = sanitized.substring(0, 2);
+      const subdir = sanitized.substring(2, 4);
+      filePath = path.resolve(
+        config.directory,
+        dir,
+        subdir,
+        `${sanitized}${config.extension}`,
+      );
+      break;
 
-        case "dated":
-            const now = new Date();
-            const year = now.getFullYear();
-            const month = String(now.getMonth() + 1).padStart(2, "0");
-            const day = String(now.getDate()).padStart(2, "0");
-            filePath = path.resolve(
-                config.directory,
-                String(year),
-                month,
-                day,
-                `${sanitized}${config.extension}`
-            );
-            break;
+    case "dated":
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, "0");
+      const day = String(now.getDate()).padStart(2, "0");
+      filePath = path.resolve(
+        config.directory,
+        String(year),
+        month,
+        day,
+        `${sanitized}${config.extension}`,
+      );
+      break;
 
-        case "direct":
-            const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
-            filePath = path.resolve(
-                config.directory,
-                `${safeKey}${config.extension}`
-            );
-            break;
+    case "direct":
+      const safeKey = key.replace(/[^a-zA-Z0-9_-]/g, "_");
+      filePath = path.resolve(
+        config.directory,
+        `${safeKey}${config.extension}`,
+      );
+      break;
 
-        case "flat":
-        default:
-            filePath = path.resolve(
-                config.directory,
-                `${sanitized}${config.extension}`
-            );
-            break;
-    }
+    case "flat":
+    default:
+      filePath = path.resolve(
+        config.directory,
+        `${sanitized}${config.extension}`,
+      );
+      break;
+  }
 
-    return filePath;
+  return filePath;
 };
 
 // ========================================
@@ -393,15 +393,13 @@ export const generateFilePath = (
  */
 let _defaultFileCache: FileCache | null = null;
 export const defaultFileCache = new Proxy({} as FileCache, {
-    get(target, prop) {
-        if (!_defaultFileCache) {
-            _defaultFileCache = new FileCache();
-        }
-        const value = (_defaultFileCache as any)[prop];
-        return typeof value === "function"
-            ? value.bind(_defaultFileCache)
-            : value;
-    },
+  get(target, prop) {
+    if (!_defaultFileCache) {
+      _defaultFileCache = new FileCache();
+    }
+    const value = (_defaultFileCache as any)[prop];
+    return typeof value === "function" ? value.bind(_defaultFileCache) : value;
+  },
 });
 
 /**
@@ -432,11 +430,11 @@ export const defaultFileCache = new Proxy({} as FileCache, {
  * @since 4.2.2
  */
 export const writeFileCache = async (
-    key: string,
-    data: CachedData,
-    options?: Partial<FileCacheOptions>
+  key: string,
+  data: CachedData,
+  options?: Partial<FileCacheOptions>,
 ): Promise<boolean> => {
-    return defaultFileCache.set(key, data, options);
+  return defaultFileCache.set(key, data, options);
 };
 
 /**
@@ -463,9 +461,9 @@ export const writeFileCache = async (
  * @since 4.2.2
  */
 export const readFileCache = async (
-    key: string
+  key: string,
 ): Promise<CachedData | null> => {
-    return defaultFileCache.get(key);
+  return defaultFileCache.get(key);
 };
 
 /**
@@ -489,7 +487,7 @@ export const readFileCache = async (
  * @since 4.2.2
  */
 export const removeFileCache = async (key: string): Promise<boolean> => {
-    return defaultFileCache.delete(key);
+  return defaultFileCache.delete(key);
 };
 
 /**
@@ -515,7 +513,7 @@ export const removeFileCache = async (key: string): Promise<boolean> => {
  * @since 4.2.2
  */
 export const hasFileCache = async (key: string): Promise<boolean> => {
-    return defaultFileCache.has(key);
+  return defaultFileCache.has(key);
 };
 
 /**
@@ -536,7 +534,7 @@ export const hasFileCache = async (key: string): Promise<boolean> => {
  * @since 4.2.2
  */
 export const clearFileCache = async (): Promise<void> => {
-    return defaultFileCache.clear();
+  return defaultFileCache.clear();
 };
 
 /**
@@ -560,7 +558,7 @@ export const clearFileCache = async (): Promise<void> => {
  * @since 4.2.2
  */
 export const getFileCacheStats = async (): Promise<FileCacheStats> => {
-    return defaultFileCache.getStats();
+  return defaultFileCache.getStats();
 };
 
 /**
@@ -583,9 +581,9 @@ export const getFileCacheStats = async (): Promise<FileCacheStats> => {
  * @since 4.2.2
  */
 export const cleanupFileCache = async (
-    options?: Partial<FileCacheCleanupOptions>
+  options?: Partial<FileCacheCleanupOptions>,
 ) => {
-    return defaultFileCache.cleanup(options);
+  return defaultFileCache.cleanup(options);
 };
 
 // ========================================
@@ -612,8 +610,8 @@ export const cleanupFileCache = async (
  * @since 4.2.2
  */
 export const readCache = async (...args: Parameters<typeof Cache.get>) => {
-    const result = await Cache.get(...args);
-    return result || {};
+  const result = await Cache.get(...args);
+  return result || {};
 };
 
 /**
@@ -635,7 +633,7 @@ export const readCache = async (...args: Parameters<typeof Cache.get>) => {
  * @since 4.2.2
  */
 export const writeCache = async (...args: Parameters<typeof Cache.set>) => {
-    return Cache.set(...args);
+  return Cache.set(...args);
 };
 
 /**
@@ -658,7 +656,7 @@ export const writeCache = async (...args: Parameters<typeof Cache.set>) => {
  * @since 4.2.2
  */
 export const getCacheStats = (): CacheStats => {
-    return Cache.getStats;
+  return Cache.getStats;
 };
 
 /**
@@ -681,8 +679,8 @@ export const getCacheStats = (): CacheStats => {
  * @since 4.2.2
  */
 export const expireCache = (key: string): Promise<void> => {
-    Cache.delete(key);
-    return Promise.resolve();
+  Cache.delete(key);
+  return Promise.resolve();
 };
 
 /**
@@ -704,8 +702,8 @@ export const expireCache = (key: string): Promise<void> => {
  * @since 4.2.2
  */
 export const clearAllCache = (): Promise<void> => {
-    Cache.clear();
-    return Promise.resolve();
+  Cache.clear();
+  return Promise.resolve();
 };
 
 /**
@@ -713,7 +711,7 @@ export const clearAllCache = (): Promise<void> => {
  * @deprecated use generateFilePath instead
  */
 export const filepath = (origin: string): string => {
-    return generateFilePath(origin, { namingStrategy: "hierarchical" });
+  return generateFilePath(origin, { namingStrategy: "hierarchical" });
 };
 
 // ========================================
@@ -762,45 +760,41 @@ export const filepath = (origin: string): string => {
  * @since 4.2.2
  */
 export const createOptimalCache = (options: {
-    type: "memory" | "file" | "hybrid";
-    config?: Partial<FileCacheOptions>;
+  type: "memory" | "file" | "hybrid";
+  config?: Partial<FileCacheOptions>;
 }) => {
-    switch (options.type) {
-        case "memory":
-            return new SecureInMemoryCache();
-        case "file":
-            return new FileCache(options.config);
-        case "hybrid":
-            // Return both memory cache and file cache in a wrapper
-            return {
-                memory: new SecureInMemoryCache(),
-                file: new FileCache(options.config),
-                async get(key: string) {
-                    // Try memory first, then file
-                    let result = await this.memory.get(key);
-                    if (!result) {
-                        result = await this.file.get(key);
-                        if (result) {
-                            // Cache in memory for faster access
-                            await this.memory.set(key, result);
-                        }
-                    }
-                    return result;
-                },
-                async set(key: string, value: CachedData, options?: any) {
-                    // Set in both caches
-                    const memoryResult = await this.memory.set(
-                        key,
-                        value,
-                        options
-                    );
-                    const fileResult = await this.file.set(key, value, options);
-                    return memoryResult && fileResult;
-                },
-            };
-        default:
-            return new SecureInMemoryCache();
-    }
+  switch (options.type) {
+    case "memory":
+      return new SecureInMemoryCache();
+    case "file":
+      return new FileCache(options.config);
+    case "hybrid":
+      // Return both memory cache and file cache in a wrapper
+      return {
+        memory: new SecureInMemoryCache(),
+        file: new FileCache(options.config),
+        async get(key: string) {
+          // Try memory first, then file
+          let result = await this.memory.get(key);
+          if (!result) {
+            result = await this.file.get(key);
+            if (result) {
+              // Cache in memory for faster access
+              await this.memory.set(key, result);
+            }
+          }
+          return result;
+        },
+        async set(key: string, value: CachedData, options?: any) {
+          // Set in both caches
+          const memoryResult = await this.memory.set(key, value, options);
+          const fileResult = await this.file.set(key, value, options);
+          return memoryResult && fileResult;
+        },
+      };
+    default:
+      return new SecureInMemoryCache();
+  }
 };
 
 // ========================================
@@ -827,12 +821,12 @@ export const deleteFileCache = removeFileCache;
  * @since 4.2.2
  */
 const handleGracefulShutdown = () => {
-    console.log("Shutting down XyPrissSecurity CS gracefully...");
-    try {
-        Cache.shutdown();
-    } catch (error) {
-        console.error("Error during cache shutdown:", error);
-    }
+  console.log("Shutting down XyPrissSecurity CS gracefully...");
+  try {
+    Cache.shutdown();
+  } catch (error) {
+    console.error("Error during cache shutdown:", error);
+  }
 };
 
 // Register shutdown handlers
@@ -856,260 +850,232 @@ export const CACHE_BUILD_DATE = "2025-04-06";
  * @since 4.2.2
  */
 export default {
-    Cache,
-    get FileCache() {
-        return FileCache;
-    },
-    SecureInMemoryCache,
-    createOptimalCache,
-    generateFilePath,
-    writeFileCache,
-    readFileCache,
-    removeFileCache,
-    hasFileCache,
-    clearFileCache,
-    getFileCacheStats,
-    cleanupFileCache,
-    writeCache,
-    readCache,
-    getCacheStats,
-    expireCache,
-    clearAllCache,
-    defaultFileCache,
-    CACHE_VERSION,
-    CACHE_BUILD_DATE,
+  Cache,
+  get FileCache() {
+    return FileCache;
+  },
+  SecureInMemoryCache,
+  createOptimalCache,
+  generateFilePath,
+  writeFileCache,
+  readFileCache,
+  removeFileCache,
+  hasFileCache,
+  clearFileCache,
+  getFileCacheStats,
+  cleanupFileCache,
+  writeCache,
+  readCache,
+  getCacheStats,
+  expireCache,
+  clearAllCache,
+  defaultFileCache,
+  CACHE_VERSION,
+  CACHE_BUILD_DATE,
 };
 
 /**
  * Redis configuration options
  */
 export interface RedisConfig {
-    /** Redis server hostname */
-    host: string;
-    /** Redis server port */
-    port: number;
-    /** Redis authentication password */
-    password?: string;
-    /** Redis database number */
-    db?: number;
-    /** Connection timeout in milliseconds */
-    connectTimeout?: number;
-    /** Command timeout in milliseconds */
-    commandTimeout?: number;
-    /** Redis Cluster configuration */
-    cluster?: {
-        enabled: boolean;
-        nodes: Array<{ host: string; port: number }>;
-    };
-    /** Redis Sentinel configuration */
-    sentinel?: {
-        enabled: boolean;
-        masters: string[];
-        sentinels: Array<{ host: string; port: number }>;
-    };
+  /** Redis server hostname */
+  host: string;
+  /** Redis server port */
+  port: number;
+  /** Redis authentication password */
+  password?: string;
+  /** Redis database number */
+  db?: number;
+  /** Connection timeout in milliseconds */
+  connectTimeout?: number;
+  /** Command timeout in milliseconds */
+  commandTimeout?: number;
+  /** Redis Cluster configuration */
+  cluster?: {
+    enabled: boolean;
+    nodes: Array<{ host: string; port: number }>;
+  };
+  /** Redis Sentinel configuration */
+  sentinel?: {
+    enabled: boolean;
+    masters: string[];
+    sentinels: Array<{ host: string; port: number }>;
+  };
 }
 
 /**
  * Memory cache configuration options
  */
 export interface MemoryConfig {
-    /** Maximum memory cache size in MB */
-    maxSize: number;
-    /** Maximum number of cache entries */
-    maxEntries: number;
-    /** LRU eviction policy settings */
-    evictionPolicy?: "lru" | "lfu" | "fifo";
+  /** Maximum memory cache size in MB */
+  maxSize: number;
+  /** Maximum number of cache entries */
+  maxEntries: number;
+  /** LRU eviction policy settings */
+  evictionPolicy?: "lru" | "lfu" | "fifo";
 }
 
 /**
  * Security configuration options
  */
 export interface SecurityConfig {
-    /** Enable AES-256-GCM encryption */
-    encryption: boolean;
-    /** Enable automatic key rotation */
-    keyRotation?: boolean;
-    /** Custom encryption key (base64 encoded) */
-    customKey?: string;
+  /** Enable AES-256-GCM encryption */
+  encryption: boolean;
+  /** Enable automatic key rotation */
+  keyRotation?: boolean;
+  /** Custom encryption key (base64 encoded) */
+  customKey?: string;
 }
 
 /**
  * Monitoring and health check configuration
  */
 export interface MonitoringConfig {
-    /** Enable performance metrics collection */
-    enabled: boolean;
-    /** Metrics collection interval in milliseconds */
-    interval?: number;
-    /** Enable health checks */
-    healthChecks?: boolean;
+  /** Enable performance metrics collection */
+  enabled: boolean;
+  /** Metrics collection interval in milliseconds */
+  interval?: number;
+  /** Enable health checks */
+  healthChecks?: boolean;
 }
 
 /**
  * Cache configuration options
  */
 export interface CacheConfig {
-    /** Cache strategy: memory, redis, or hybrid */
-    strategy: "memory" | "redis" | "hybrid";
-    /** Default TTL in seconds */
-    ttl?: number;
-    /** Redis configuration (required for redis and hybrid strategies) */
-    redis?: RedisConfig;
-    /** Memory configuration (required for memory and hybrid strategies) */
-    memory?: MemoryConfig;
-    /** Security configuration */
-    security?: SecurityConfig;
-    /** Monitoring configuration */
-    monitoring?: MonitoringConfig;
-    /** Enable compression */
-    compression?: boolean;
+  /** Cache strategy: memory, redis, or hybrid */
+  strategy: "memory" | "redis" | "hybrid";
+  /** Default TTL in seconds */
+  ttl?: number;
+  /** Redis configuration (required for redis and hybrid strategies) */
+  redis?: RedisConfig;
+  /** Memory configuration (required for memory and hybrid strategies) */
+  memory?: MemoryConfig;
+  /** Security configuration */
+  security?: SecurityConfig;
+  /** Monitoring configuration */
+  monitoring?: MonitoringConfig;
+  /** Enable compression */
+  compression?: boolean;
 }
 
 /**
  * Cache options for set operations
  */
 export interface CacheSetOptions {
-    /** Time to live in seconds */
-    ttl?: number;
-    /** Array of tags for bulk invalidation */
-    tags?: string[];
+  /** Time to live in seconds */
+  ttl?: number;
+  /** Array of tags for bulk invalidation */
+  tags?: string[];
 }
 
 /**
  * Secure cache statistics interface
  */
 export interface SecureCacheStats {
-    memory: {
-        hitRate: number;
-        missRate: number;
-        size: number;
-        entries: number;
-        maxSize: number;
-        maxEntries: number;
-    };
-    redis?: {
-        hitRate: number;
-        missRate: number;
-        connected: boolean;
-        memoryUsage: number;
-        keyCount: number;
-    };
-    operations: {
-        total: number;
-        gets: number;
-        sets: number;
-        deletes: number;
-        errors: number;
-    };
-    performance: {
-        avgResponseTime: number;
-        p95ResponseTime: number;
-        p99ResponseTime: number;
-    };
+  memory: {
+    hitRate: number;
+    missRate: number;
+    size: number;
+    entries: number;
+    maxSize: number;
+    maxEntries: number;
+  };
+  redis?: {
+    hitRate: number;
+    missRate: number;
+    connected: boolean;
+    memoryUsage: number;
+    keyCount: number;
+  };
+  operations: {
+    total: number;
+    gets: number;
+    sets: number;
+    deletes: number;
+    errors: number;
+  };
+  performance: {
+    avgResponseTime: number;
+    p95ResponseTime: number;
+    p99ResponseTime: number;
+  };
 }
 
 /**
  * Cache health status interface
  */
 export interface CacheHealth {
-    status: "healthy" | "degraded" | "unhealthy";
-    details: {
-        redis?: {
-            connected: boolean;
-            latency?: number;
-            error?: string;
-        };
-        memory?: {
-            usage: number;
-            available: number;
-        };
-        errors?: string[];
-        lastCheck: Date;
+  status: "healthy" | "degraded" | "unhealthy";
+  details: {
+    redis?: {
+      connected: boolean;
+      latency?: number;
+      error?: string;
     };
+    memory?: {
+      usage: number;
+      available: number;
+    };
+    errors?: string[];
+    lastCheck: Date;
+  };
 }
 
 /**
  * Fortified function interface for public API to avoid TypeScript issues with private members
  */
 export interface IFortifiedFunction<T extends any[], R> {
-    (...args: T): R;
-    getStats(): any;
-    getAnalyticsData(): any;
-    getOptimizationSuggestions(): any[];
-    getPerformanceTrends(): any;
-    detectAnomalies(): any[];
-    getDetailedMetrics(): any;
-    clearCache(): void;
-    getCacheStats(): { hits: number; misses: number; size: number };
-    warmCache(args: T[]): Promise<void>;
-    handleMemoryPressure(level: "low" | "medium" | "high"): void;
-    optimizePerformance(): void;
-    updateOptions(newOptions: any): void;
-    getConfiguration(): any;
+  (...args: T): R;
+  getStats(): any;
+  getAnalyticsData(): any;
+  getOptimizationSuggestions(): any[];
+  getPerformanceTrends(): any;
+  detectAnomalies(): any[];
+  getDetailedMetrics(): any;
+  clearCache(): void;
+  getCacheStats(): { hits: number; misses: number; size: number };
+  warmCache(args: T[]): Promise<void>;
+  handleMemoryPressure(level: "low" | "medium" | "high"): void;
+  optimizePerformance(): void;
+  updateOptions(newOptions: any): void;
+  getConfiguration(): any;
 }
 
 /**
  * Cache interface for public API to avoid TypeScript issues with private members
  */
 export interface ICacheAdapter {
-    get<T = any>(key: string): Promise<T | null>;
-    set<T = any>(
-        key: string,
-        value: T,
-        options?: CacheSetOptions
-    ): Promise<boolean>;
-    delete(key: string): Promise<boolean>;
-    exists(key: string): Promise<boolean>;
-    clear(): Promise<void>;
-    connect(): Promise<void>;
-    disconnect(): Promise<void>;
-    getStats(): Promise<SecureCacheStats>;
-    mget<T = any>(keys: string[]): Promise<Record<string, T>>;
-    mset<T = any>(
-        entries: Record<string, T> | Array<[string, T]>,
-        options?: CacheSetOptions
-    ): Promise<boolean>;
-    invalidateByTags(tags: string[]): Promise<number>;
-    getTTL(key: string): Promise<number>;
-    expire(key: string, ttl: number): Promise<boolean>;
-    keys(pattern?: string): Promise<string[]>;
-    getHealth(): CacheHealth;
-    memoize<TArgs extends any[], TResult>(
-        keyGenerator: (...args: TArgs) => string,
-        computeFunction: (...args: TArgs) => TResult | Promise<TResult>,
-        options?: CacheSetOptions
-    ): (...args: TArgs) => Promise<TResult>;
+  get<T = any>(key: string): Promise<T | null>;
+  set<T = any>(
+    key: string,
+    value: T,
+    options?: CacheSetOptions,
+  ): Promise<boolean>;
+  delete(key: string): Promise<boolean>;
+  exists(key: string): Promise<boolean>;
+  clear(): Promise<void>;
+  connect(): Promise<void>;
+  disconnect(): Promise<void>;
+  getStats(): Promise<SecureCacheStats>;
+  mget<T = any>(keys: string[]): Promise<Record<string, T>>;
+  mset<T = any>(
+    entries: Record<string, T> | Array<[string, T]>,
+    options?: CacheSetOptions,
+  ): Promise<boolean>;
+  invalidateByTags(tags: string[]): Promise<number>;
+  getTTL(key: string): Promise<number>;
+  expire(key: string, ttl: number): Promise<boolean>;
+  keys(pattern?: string): Promise<string[]>;
+  getHealth(): CacheHealth;
+  memoize<TArgs extends any[], TResult>(
+    keyGenerator: (...args: TArgs) => string,
+    computeFunction: (...args: TArgs) => TResult | Promise<TResult>,
+    options?: CacheSetOptions,
+  ): (...args: TArgs) => Promise<TResult>;
 }
 
-/**
- * Creates a type-safe fortified function wrapper
- *
- * This function wraps the `func` utility to provide proper TypeScript types
- * for export scenarios, avoiding the "cannot be named" error.
- *
- * @param fn - The function to xypriss
- * @param options - Optional fortification options
- * @returns A type-safe fortified function
- *
- * @example
- * ```typescript
- * import { createTypedFortifiedFunction } from "xypriss-security";
- *
- * const somme = createTypedFortifiedFunction((a: number, b: number): number => {
- *   return a + b;
- * });
- *
- * export const mathOps = { somme }; // ✅ No TypeScript errors
- * ```
- */
-export function createTypedFortifiedFunction<T extends any[], R>(
-    fn: (...args: T) => R,
-    options?: any
-): IFortifiedFunction<T, R> {
-    // Import func dynamically to avoid circular dependencies
-    return func(fn, options) as IFortifiedFunction<T, R>;
-}
-
+// Removed createTypedFortifiedFunction placeholder to prevent func reference errors until re-implementation.
 /**
  * Short alias for SecureCacheClient for convenience
  *
@@ -1124,4 +1090,3 @@ export function createTypedFortifiedFunction<T extends any[], R>(
  * ```
  */
 export { SecureCacheClient as SCC };
-
