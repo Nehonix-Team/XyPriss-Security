@@ -84,3 +84,4 @@ xyp/private
 tools/xyp/private
 tools/XEMS/
 .xpm
+tests/server

@@ -1,147 +1,183 @@
 /***************************************************************************
- * XyPriss Security Core - Bun FFI Bridge
- *
- * @author NEHONIX (iDevo - https://github.com/iDevo-ll)
- * @license Nehonix Open Source License (NOSL)
- *
- * Copyright (c) 2025 NEHONIX. All rights reserved.
+ * XyPriss Security Core - Runtime Agnostic FFI Bridge (Bun & Node.js)
  ****************************************************************************/
-//@ts-ignore
-/// <reference types="bun-types" />
-import { dlopen, FFIType, ptr, CString } from "bun:ffi";
 
 import { join } from "path";
 
-// Locate the shared library
-const libPath = join(process.cwd(), "lib/security-core/libxypriss_core.so");
+// 1. Runtime Detection
+const isBun = typeof Bun !== "undefined";
 
-const lib = dlopen(libPath, {
-  FreeString: {
-    args: [FFIType.ptr],
-    returns: FFIType.void,
-  },
-  HashPassword: {
-    args: [FFIType.ptr, FFIType.ptr, FFIType.i32, FFIType.i32, FFIType.i32],
-    returns: FFIType.ptr,
-  },
+// 2. Locate Shared Library
+const extension =
+  process.platform === "win32"
+    ? ".dll"
+    : process.platform === "darwin"
+      ? ".dylib"
+      : ".so";
+const libPath = join(
+  process.cwd(),
+  `lib/security-core/libxypriss_core${extension}`,
+);
 
-  VerifyPassword: {
-    args: [FFIType.ptr, FFIType.ptr],
-    returns: FFIType.int,
-  },
-  GeneratePassword: {
-    args: [FFIType.i32, FFIType.ptr],
-    returns: FFIType.ptr,
-  },
+// 3. FFI Provider Setup
+let lib: any;
+let nativePtr: (val: any) => any;
+let nativeFree: (ptr: any) => void;
+let getStr: (ptr: any) => string;
 
-  GetRandomBytes: {
-    args: [FFIType.i32],
-    returns: FFIType.ptr,
-  },
-  GetRandomInt: {
-    args: [FFIType.i64],
-    returns: FFIType.i64,
-  },
-  GenerateOTP: {
-    args: [FFIType.i32],
-    returns: FFIType.ptr,
-  },
+if (isBun) {
+  // --- Bun Implementation ---
+  const { dlopen, FFIType, ptr, CString } = require("bun:ffi");
 
-  GetSHA256: {
-    args: [FFIType.ptr, FFIType.i32],
-    returns: FFIType.ptr,
-  },
-  GetHash: {
-    args: [FFIType.ptr, FFIType.i32, FFIType.ptr],
-    returns: FFIType.ptr,
-  },
-  GetHMAC: {
-    args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.i32, FFIType.ptr],
-    returns: FFIType.ptr,
-  },
-  HKDF: {
-    args: [
-      FFIType.ptr,
-      FFIType.i32,
-      FFIType.ptr,
-      FFIType.i32,
-      FFIType.ptr,
-      FFIType.i32,
-      FFIType.i32,
-    ],
-    returns: FFIType.ptr,
-  },
-  PBKDF2: {
-    args: [
-      FFIType.ptr,
-      FFIType.ptr,
-      FFIType.i32,
-      FFIType.i32,
-      FFIType.i32,
-      FFIType.ptr,
-    ],
-    returns: FFIType.ptr,
-  },
-  ConstantTimeCompare: {
-    args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.i32],
-    returns: FFIType.int,
-  },
+  lib = dlopen(libPath, {
+    FreeString: { args: [FFIType.ptr], returns: FFIType.void },
+    HashPassword: {
+      args: [FFIType.ptr, FFIType.ptr, FFIType.i32, FFIType.i32, FFIType.i32],
+      returns: FFIType.ptr,
+    },
+    VerifyPassword: { args: [FFIType.ptr, FFIType.ptr], returns: FFIType.int },
+    GeneratePassword: {
+      args: [FFIType.i32, FFIType.ptr],
+      returns: FFIType.ptr,
+    },
+    GetRandomBytes: { args: [FFIType.i32], returns: FFIType.ptr },
+    GetRandomInt: { args: [FFIType.i64], returns: FFIType.i64 },
+    GenerateOTP: { args: [FFIType.i32], returns: FFIType.ptr },
+    GetSHA256: { args: [FFIType.ptr, FFIType.i32], returns: FFIType.ptr },
+    GetHash: {
+      args: [FFIType.ptr, FFIType.i32, FFIType.ptr],
+      returns: FFIType.ptr,
+    },
+    GetHMAC: {
+      args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.i32, FFIType.ptr],
+      returns: FFIType.ptr,
+    },
+    HKDF: {
+      args: [
+        FFIType.ptr,
+        FFIType.i32,
+        FFIType.ptr,
+        FFIType.i32,
+        FFIType.ptr,
+        FFIType.i32,
+        FFIType.i32,
+      ],
+      returns: FFIType.ptr,
+    },
+    PBKDF2: {
+      args: [
+        FFIType.ptr,
+        FFIType.ptr,
+        FFIType.i32,
+        FFIType.i32,
+        FFIType.i32,
+        FFIType.ptr,
+      ],
+      returns: FFIType.ptr,
+    },
+    ConstantTimeCompare: {
+      args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.i32],
+      returns: FFIType.int,
+    },
+    Encrypt: {
+      args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
+      returns: FFIType.ptr,
+    },
+    Decrypt: {
+      args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
+      returns: FFIType.ptr,
+    },
+    EncryptRaw: {
+      args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.i32, FFIType.ptr],
+      returns: FFIType.ptr,
+    },
+    DecryptRaw: {
+      args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.i32],
+      returns: FFIType.ptr,
+    },
+    KyberGenerateKeyPair: { args: [], returns: FFIType.ptr },
+    GenerateX25519KeyPair: { args: [], returns: FFIType.ptr },
+    DeriveSharedSecretX25519: {
+      args: [FFIType.ptr, FFIType.ptr],
+      returns: FFIType.ptr,
+    },
+    SampleLWEError: { args: [], returns: FFIType.int },
+  });
 
-  Encrypt: {
-    args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
-    returns: FFIType.ptr,
-  },
-  Decrypt: {
-    args: [FFIType.ptr, FFIType.ptr, FFIType.ptr],
-    returns: FFIType.ptr,
-  },
-  EncryptRaw: {
-    args: [FFIType.ptr, FFIType.i32, FFIType.ptr, FFIType.i32, FFIType.ptr],
-    returns: FFIType.ptr,
-  },
-  DecryptRaw: {
-    args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.i32],
-    returns: FFIType.ptr,
-  },
+  nativePtr = ptr;
+  nativeFree = (p) => lib.symbols.FreeString(p);
+  getStr = (p) => new CString(p).toString();
+} else {
+  // --- Node.js Implementation (Koffi) ---
+  const koffi = require("koffi");
+  lib = koffi.load(libPath);
 
-  KyberGenerateKeyPair: {
-    args: [],
-    returns: FFIType.ptr,
-  },
-  GenerateX25519KeyPair: {
-    args: [],
-    returns: FFIType.ptr,
-  },
-  DeriveSharedSecretX25519: {
-    args: [FFIType.ptr, FFIType.ptr],
-    returns: FFIType.ptr,
-  },
-  SampleLWEError: {
-    args: [],
-    returns: FFIType.int,
-  },
-});
+  const symbols = {
+    FreeString: lib.func("void FreeString(void *)"),
+    HashPassword: lib.func(
+      "char * HashPassword(const char *, const char *, int, int, int)",
+    ),
+    VerifyPassword: lib.func("int VerifyPassword(const char *, const char *)"),
+    GeneratePassword: lib.func("char * GeneratePassword(int, const char *)"),
+    GetRandomBytes: lib.func("char * GetRandomBytes(int)"),
+    GetRandomInt: lib.func("int64_t GetRandomInt(int64_t)"),
+    GenerateOTP: lib.func("char * GenerateOTP(int)"),
+    GetSHA256: lib.func("char * GetSHA256(const void *, int)"),
+    GetHash: lib.func("char * GetHash(const void *, int, const char *)"),
+    GetHMAC: lib.func(
+      "char * GetHMAC(const void *, int, const void *, int, const char *)",
+    ),
+    HKDF: lib.func(
+      "char * HKDF(const void *, int, const void *, int, const void *, int, int)",
+    ),
+    PBKDF2: lib.func(
+      "char * PBKDF2(const char *, const void *, int, int, int, const char *)",
+    ),
+    ConstantTimeCompare: lib.func(
+      "int ConstantTimeCompare(const void *, int, const void *, int)",
+    ),
+    Encrypt: lib.func(
+      "char * Encrypt(const char *, const char *, const char *)",
+    ),
+    Decrypt: lib.func(
+      "char * Decrypt(const char *, const char *, const char *)",
+    ),
+    EncryptRaw: lib.func(
+      "char * EncryptRaw(const void *, int, const void *, int, const char *)",
+    ),
+    DecryptRaw: lib.func(
+      "char * DecryptRaw(const char *, const void *, const char *, int)",
+    ),
+    KyberGenerateKeyPair: lib.func("char * KyberGenerateKeyPair()"),
+    GenerateX25519KeyPair: lib.func("char * GenerateX25519KeyPair()"),
+    DeriveSharedSecretX25519: lib.func(
+      "char * DeriveSharedSecretX25519(const char *, const char *)",
+    ),
+    SampleLWEError: lib.func("int SampleLWEError()"),
+  };
+
+  lib.symbols = symbols;
+  nativePtr = (val) => val;
+  nativeFree = () => {}; // Node mode handles it safely via automated string conversion
+  getStr = (p) => p;
+}
 
 /**
- * Helper to handle Go-allocated C strings
+ * Common handler for Go-allocated strings
  */
 function handleGoString(resPtr: any): string {
   if (!resPtr) return "";
-  // In Bun FFI, if return type is FFIType.ptr, resPtr is the memory address.
-  // We wrap it in CString which reads until null terminator.
-  const str = new CString(resPtr).toString();
-
+  const str = getStr(resPtr);
   try {
-    lib.symbols.FreeString(resPtr);
+    nativeFree(resPtr);
   } catch (e) {}
   return str;
 }
 
 /**
- * Professional Bridge to Go Security Core
+ * Standard Bridge Interface
  */
 export const Bridge = {
-  // Passwords
   hashPassword: (
     pass: string,
     algo: string = "argon2id",
@@ -151,8 +187,8 @@ export const Bridge = {
   ) =>
     handleGoString(
       lib.symbols.HashPassword(
-        ptr(Buffer.from(pass + "\0")),
-        ptr(Buffer.from(algo + "\0")),
+        nativePtr(Buffer.from(pass + "\0")),
+        nativePtr(Buffer.from(algo + "\0")),
         iterations,
         memory,
         parallelism,
@@ -161,43 +197,46 @@ export const Bridge = {
 
   verifyPassword: (pass: string, hash: string) =>
     lib.symbols.VerifyPassword(
-      ptr(Buffer.from(pass + "\0")),
-      ptr(Buffer.from(hash + "\0")),
+      nativePtr(Buffer.from(pass + "\0")),
+      nativePtr(Buffer.from(hash + "\0")),
     ) === 1,
 
   generatePassword: (len: number, charset: string = "") =>
     handleGoString(
-      lib.symbols.GeneratePassword(len, ptr(Buffer.from(charset + "\0"))),
+      lib.symbols.GeneratePassword(len, nativePtr(Buffer.from(charset + "\0"))),
     ),
 
   getRandomBytes: (len: number) => {
     const hex = handleGoString(lib.symbols.GetRandomBytes(len));
     if (hex.startsWith("error:")) throw new Error(hex);
-    // Convert hex back to Uint8Array
     const matches = hex.match(/.{1,2}/g) || [];
     return new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
   },
 
   getRandomInt: (max: number) => {
-    return Number(lib.symbols.GetRandomInt(BigInt(max)));
+    const val = lib.symbols.GetRandomInt(isBun ? BigInt(max) : max);
+    return Number(val);
   },
 
   generateOTP: (digits: number) =>
     handleGoString(lib.symbols.GenerateOTP(digits)),
 
-  // Crypto Primitives
   hash: (data: string | Uint8Array, algo: string = "sha256") => {
     const buf =
       typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
     return handleGoString(
-      lib.symbols.GetHash(ptr(buf), buf.length, ptr(Buffer.from(algo + "\0"))),
+      lib.symbols.GetHash(
+        nativePtr(buf),
+        buf.length,
+        nativePtr(Buffer.from(algo + "\0")),
+      ),
     );
   },
 
   sha256: (data: string | Uint8Array) => {
     const buf =
       typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
-    return handleGoString(lib.symbols.GetSHA256(ptr(buf), buf.length));
+    return handleGoString(lib.symbols.GetSHA256(nativePtr(buf), buf.length));
   },
 
   hmac: (
@@ -210,11 +249,11 @@ export const Bridge = {
       typeof data === "string" ? Buffer.from(data) : Buffer.from(data);
     return handleGoString(
       lib.symbols.GetHMAC(
-        ptr(kBuf),
+        nativePtr(kBuf),
         kBuf.length,
-        ptr(dBuf),
+        nativePtr(dBuf),
         dBuf.length,
-        ptr(Buffer.from(algo + "\0")),
+        nativePtr(Buffer.from(algo + "\0")),
       ),
     );
   },
@@ -232,11 +271,11 @@ export const Bridge = {
       typeof info === "string" ? Buffer.from(info) : Buffer.from(info);
     return handleGoString(
       lib.symbols.HKDF(
-        ptr(iBuf),
+        nativePtr(iBuf),
         iBuf.length,
-        ptr(sBuf),
+        nativePtr(sBuf),
         sBuf.length,
-        ptr(fBuf),
+        nativePtr(fBuf),
         fBuf.length,
         len,
       ),
@@ -252,52 +291,55 @@ export const Bridge = {
   ) => {
     return handleGoString(
       lib.symbols.PBKDF2(
-        ptr(Buffer.from(pass + "\0")),
-        ptr(salt),
+        nativePtr(Buffer.from(pass + "\0")),
+        nativePtr(salt),
         salt.length,
         iterations,
         keyLen,
-        ptr(Buffer.from(algo + "\0")),
+        nativePtr(Buffer.from(algo + "\0")),
       ),
     );
   },
 
   constantTimeCompare: (a: Uint8Array, b: Uint8Array) => {
     return (
-      lib.symbols.ConstantTimeCompare(ptr(a), a.length, ptr(b), b.length) === 1
+      lib.symbols.ConstantTimeCompare(
+        nativePtr(a),
+        a.length,
+        nativePtr(b),
+        b.length,
+      ) === 1
     );
   },
 
-  // AES / Encryption (Legacy String)
   encrypt: (data: string, key: string, algo: string = "aes") =>
     handleGoString(
       lib.symbols.Encrypt(
-        ptr(Buffer.from(data + "\0")),
-        ptr(Buffer.from(key + "\0")),
-        ptr(Buffer.from(algo + "\0")),
+        nativePtr(Buffer.from(data + "\0")),
+        nativePtr(Buffer.from(key + "\0")),
+        nativePtr(Buffer.from(algo + "\0")),
       ),
     ),
 
   decrypt: (encrypted: string, key: string, algo: string = "aes") =>
     handleGoString(
       lib.symbols.Decrypt(
-        ptr(Buffer.from(encrypted + "\0")),
-        ptr(Buffer.from(key + "\0")),
-        ptr(Buffer.from(algo + "\0")),
+        nativePtr(Buffer.from(encrypted + "\0")),
+        nativePtr(Buffer.from(key + "\0")),
+        nativePtr(Buffer.from(algo + "\0")),
       ),
     ),
 
-  // AES / Encryption (Raw Binary for native Uint8Array)
   encryptRaw: (data: Uint8Array, key: Uint8Array, algo: string = "aes") => {
     const dBuf = Buffer.from(data);
     const kBuf = Buffer.from(key);
     return handleGoString(
       lib.symbols.EncryptRaw(
-        ptr(dBuf),
+        nativePtr(dBuf),
         dBuf.length,
-        ptr(kBuf),
+        nativePtr(kBuf),
         kBuf.length,
-        ptr(Buffer.from(algo + "\0")),
+        nativePtr(Buffer.from(algo + "\0")),
       ),
     );
   },
@@ -306,26 +348,23 @@ export const Bridge = {
     const kBuf = Buffer.from(key);
     return handleGoString(
       lib.symbols.DecryptRaw(
-        ptr(Buffer.from(encryptedHex + "\0")),
-        ptr(kBuf),
-        ptr(Buffer.from(algo + "\0")),
+        nativePtr(Buffer.from(encryptedHex + "\0")),
+        nativePtr(kBuf),
+        nativePtr(Buffer.from(algo + "\0")),
         kBuf.length,
       ),
     );
   },
 
-  // Post-Quantum
   kyberGenerateKeyPair: () =>
     handleGoString(lib.symbols.KyberGenerateKeyPair()),
-
   generateX25519KeyPair: () =>
     handleGoString(lib.symbols.GenerateX25519KeyPair()),
-
   deriveSharedSecretX25519: (priv: string, pub: string) =>
     handleGoString(
       lib.symbols.DeriveSharedSecretX25519(
-        ptr(Buffer.from(priv + "\0")),
-        ptr(Buffer.from(pub + "\0")),
+        nativePtr(Buffer.from(priv + "\0")),
+        nativePtr(Buffer.from(pub + "\0")),
       ),
     ),
   sampleLWEError: () => lib.symbols.SampleLWEError(),

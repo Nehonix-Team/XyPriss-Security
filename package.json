@@ -6,15 +6,19 @@
     "name": "NEHONIX",
     "url": "https://nehonix.com"
   },
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
-    "build": "npm run build:core \u0026\u0026 npm run build:ts",
-    "build:core": "cd lib/security-core \u0026\u0026 go build -o libxypriss_core.so -buildmode=c-shared main.go",
-    "build:ts": "rimraf dist \u0026\u0026 tsc",
+    "build": "npm run build:core && npm run build:ts",
+    "build:core": "node scripts/build-core.js",
+    "build:ts": "rimraf dist && tsc",
+    "postinstall": "node scripts/build-core.js",
     "test": "bun run lib/test_ultra_robust.ts"
   },
   "dependencies": {
     "check-disk-space": "^3.4.0",
     "ioredis": "^5.10.0",
+    "koffi": "^2.15.2",
     "strulink": "^1.1.0"
   },
   "devDependencies": {
