@@ -4,6 +4,7 @@ The Core module provides the foundational cryptographic primitives and binary ha
 
 ## Classes
 
+- [Cipher](#cipher-compatibility) (Compatibility Entry Point)
 - [Hash](#hash)
 - [Random](#random)
 - [Password](#password)
@@ -12,41 +13,71 @@ The Core module provides the foundational cryptographic primitives and binary ha
 
 ---
 
+## Cipher (Compatibility)
+
+A unified entry point that aggregates all core modules for convenience and backward compatibility.
+
+### Static Properties
+
+- `hash`: Re-exports the [Hash](#hash) class.
+- `random`: Re-exports the [Random](#random) class.
+- `crypto`: Alias for the [Random](#random) class.
+- `XSec`: Re-exports the [XyPrissSecurity](#xyprisssecurity) class.
+
+**Example:**
+
+```typescript
+import { Cipher } from "xypriss-security";
+
+const bytes = Cipher.random.getRandomBytes(32);
+const digest = Cipher.hash.create("data");
+const apiKey = Cipher.XSec.generateAPIKey();
+```
+
+---
+
 ## Hash
 
-High-performance hashing and HMAC operations.
+High-performance hashing, HMAC, and PBKDF2 operations.
 
 ### static create(input, options?)
 
-Creates a secure SHA-256 hash.
+Creates a secure hash or derived key.
 
 **Parameters:**
 
 - `input`: `string | Uint8Array` - The data to be hashed.
 - `options`: `HashOptions` (Optional)
-  - `outputFormat`: `"hex" | "base64" | "buffer" | "uint8array"` - The desired format of the output. Default is `"hex"`.
+  - `algorithm`: `"sha256" | "sha512" | "pbkdf2" | "argon2id"` - Default is `"sha256"`.
+  - `iterations`: `number` - For PBKDF2 (Default: 100,000).
+  - `outputFormat`: `"hex" | "base64" | "buffer"` - Default is `"hex"`.
 
-**Returns:** `string | Uint8Array`
+**Returns:** `string | SecureBuffer`
 
 **Example:**
 
 ```typescript
 import { Hash } from "xypriss-security";
 
+// Standard Hash
 const hexHash = Hash.create("message");
-const bufferHash = Hash.create("message", { outputFormat: "buffer" });
+
+// PBKDF2 Key Derivation
+const key = Hash.create("password", {
+  algorithm: "pbkdf2",
+  iterations: 210000,
+  outputFormat: "buffer",
+});
 ```
 
-### static hmac(key, data)
+### static pkce(verifier, method?)
 
-Generates a Message Authentication Code (HMAC) using SHA-256.
+Generates a PKCE code challenge.
 
-**Parameters:**
+- `verifier`: `string`
+- `method`: `"S256" | "plain"` (Default: `"S256"`)
 
-- `key`: `string | Uint8Array` - The secret key.
-- `data`: `string | Uint8Array` - The data to authenticate.
-
-**Returns:** `string` (Hex-encoded)
+**Returns:** `string` (Base64Url encoded)
 
 ---
 
@@ -54,55 +85,32 @@ Generates a Message Authentication Code (HMAC) using SHA-256.
 
 Cryptographically secure random generation.
 
-### static getRandomBytes(length)
+### static Int(minOrMax, max?)
 
-Generates cryptographically strong random bytes.
+Generates a secure random integer.
 
-**Parameters:**
-
-- `length`: `number` - Number of bytes to generate.
-
-**Returns:** `SecureBuffer`
+- `Cipher.random.Int(100)` -> Range [0, 100)
+- `Cipher.random.Int(50, 150)` -> Range [50, 150)
 
 ### static generateToken(length?, options?)
 
-Generates a secure alphanumeric random token.
-
-**Parameters:**
-
-- `length`: `number` (Default: 32)
-- `options`: `SecureTokenOptions` (Optional)
-
-**Returns:** `string`
+Generates a secure alphanumeric random token. Supports character set constraints and similarity filtering.
 
 ---
 
 ## Password
 
-Secure password hashing and verification using memory-hard algorithms.
+Secure password hashing (Argon2id/Scrypt).
 
 ### static async hash(password, options?)
 
-Hashes a password with Argon2id or Scrypt.
+Hashes a password with memory-hard parameters.
 
-**Parameters:**
+**Options:**
 
-- `password`: `string`
-- `options`: `PasswordHashOptions` (Optional)
-  - `algorithm`: `"argon2id" | "scrypt"` (Default: `"argon2id"`)
-
-**Returns:** `Promise<string>`
-
-### static async verify(password, hash)
-
-Verifies a password against an encoded hash.
-
-**Parameters:**
-
-- `password`: `string`
-- `hash`: `string`
-
-**Returns:** `Promise<boolean>`
+- `memoryCost`: Memory usage in KB (Default: 65536).
+- `parallelism`: Number of threads (Default: 4).
+- `iterations`: Time cost (Default: 3).
 
 ---
 
@@ -112,38 +120,20 @@ Enhanced `Uint8Array` with familiar encoding methods.
 
 ### toString(encoding?)
 
-Converts the binary data to a string.
-
-**Support Encodings:**
-
-- `"hex"` (Default): Hexadecimal string.
-- `"base64"`: Base64 encoding.
-- `"utf8"` / `"utf-8"`: UTF-8 string.
-- `"binary"`: Raw binary string.
-- `"strulink"`: Native Strulink obfuscation (if integrated).
-
-**Returns:** `string`
-
-### toBuffer()
-
-Converts the instance to a Node.js `Buffer`.
-
-**Returns:** `Buffer`
+Converts the binary data to a string. Supported encodings: `hex`, `base64`, `utf8`, `binary`.
 
 ---
 
-## XyPrissSecurity
+## XyPrissSecurity (XSec)
 
 General framework utilities for environment and key management.
 
 ### static generateAPIKey(options?)
 
-Generates a structured API key with a prefix and timestamp.
+Generates a structured API key.
 
-**Parameters:**
+**Options:**
 
-- `options`: `APIKeyOptions` (Optional)
-  - `prefix`: `string` (Default: `"xy"`)
-  - `randomPartLength`: `number` (Default: 32)
-
-**Returns:** `string`
+- `prefix`: string (Default: `"xy"`)
+- `includeTimestamp`: boolean (Default: `true`)
+- `randomPartLength`: number (Default: 32)

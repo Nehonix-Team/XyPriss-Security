@@ -197,19 +197,19 @@ export class EncryptionService {
     salt: Uint8Array | any,
     iterations: number,
   ): Promise<Uint8Array> {
-    const passwordBuffer = new TextEncoder().encode(password);
     const saltBuffer = salt instanceof Uint8Array ? salt : salt.toUint8Array();
 
-    // Core PBKDF2 alternative via high-speed native loop or generic Hash loop if dedicated pbkdf2
-    // is omitted for standard derivation. Keys.deriveKey handles most optimal hashing.
-    const baseKey = await Keys.deriveKey(password, { algorithm: "argon2id" });
-    const iterationsSalt =
-      typeof salt === "string" ? salt : Buffer.from(salt).toString("hex");
+    const resultHex = Bridge.pbkdf2(
+      password,
+      saltBuffer,
+      iterations,
+      this.KEY_LENGTH,
+      "sha256",
+    );
 
-    // Create a 32-byte derived hash using standard HMAC chaining.
-    let currentHash = Hash.hmac(baseKey, iterationsSalt);
+    if (resultHex.startsWith("error:")) throw new Error(resultHex);
 
-    return Buffer.from(currentHash.substring(0, 64), "hex");
+    return Buffer.from(resultHex, "hex");
   }
 
   // Obsolete encryption wrappers leveraging Node.js crypto removed

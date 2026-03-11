@@ -26,22 +26,15 @@ export type HashAlgorithm =
   | "sha256"
   | "sha512"
   | "sha3-256"
-  | "blake3"
-  | "SHA-1"
-  | "SHA-256"
-  | "SHA-384"
-  | "SHA-512";
+  | "blake2b"
+  | "pbkdf2"
+  | "argon2id"
+  | "scrypt";
 
 /**
  * Supported output formats for cryptographic results.
  */
-export type HashOutputFormat =
-  | "hex"
-  | "base64"
-  | "base64url"
-  | "buffer"
-  | "uint8array"
-  | "uint8array";
+export type HashOutputFormat = "hex" | "base64" | "buffer" | "uint8array";
 
 /**
  * Supported HMAC algorithms.
@@ -62,14 +55,18 @@ export type BaseEncodingType =
  * Configuration options for hashing operations.
  */
 export interface HashOptions {
-  /** The hashing algorithm to utilize. */
+  /** The hashing algorithm to utilize. Defaults to 'sha256'. */
   algorithm?: HashAlgorithm | string;
-  /** The desired output format of the hash. */
+  /** The desired output format of the hash (hex, base64, buffer). */
   outputFormat?: HashOutputFormat | string;
-  /** The number of iterations for the hashing process. */
+  /** The number of iterations for the hashing process (relevant for KDFs like PBKDF2). */
   iterations?: number;
   /** An optional salt to add entropy to the hash. */
   salt?: string | Uint8Array;
+  /** Desired length of the output in bytes (relevant for PBKDF2). */
+  keyLength?: number;
+  /** Internal digest algorithm (relevant for PBKDF2). */
+  digest?: HashAlgorithm | string;
 }
 
 /**
@@ -100,23 +97,49 @@ export type CryptoAlgorithm =
  * Configuration for key derivation functions (KDF).
  */
 export interface KeyDerivationOptions {
-  /** The derivation algorithm (e.g., PBKDF2, Argon2id). */
-  algorithm?: "pbkdf2" | "argon2" | "scrypt" | "hkdf" | "argon2id" | string;
-  /** Number of iterations or rounds. */
+  /**
+   * The derivation algorithm to utilize.
+   * Defaults to 'argon2id'.
+   */
+  algorithm?: "pbkdf2" | "argon2id" | "scrypt" | "hkdf" | string;
+  /**
+   * Number of iterations or rounds for the hashing process.
+   * High iteration counts increase resistance to brute-force attacks.
+   */
   iterations?: number;
-  /** Desired length of the derived key in bytes. */
+  /**
+   * Desired length of the derived key in bytes.
+   * Defaults to 32 (256-bit key) for most operations.
+   */
   keyLength?: number;
-  /** Salt used in the derivation process. */
+  /**
+   * Salt used in the derivation process to prevent rainbow table attacks.
+   * If not provided, a secure random salt is typically generated.
+   */
   salt?: string | Uint8Array;
-  /** Digest algorithm to be used with the KDF. */
+  /**
+   * Additional context/info string for HKDF operations.
+   * Helps separate derived keys for different purposes from the same base secret.
+   */
+  info?: string | Uint8Array;
+  /**
+   * Digest algorithm to be used with the KDF (e.g., 'sha256', 'sha512').
+   */
   digest?: HashAlgorithm | string;
-  /** Memory cost parameter (e.g., for Argon2). */
+  /**
+   * Memory cost parameter for memory-hard algorithms like Argon2id.
+   * Represents the memory usage in Kilobytes.
+   */
   memoryCost?: number;
-  /** Time cost parameter (e.g., for Argon2). */
+  /**
+   * Time cost parameter for Argon2id, representing the number of passes over the memory.
+   */
   timeCost?: number;
-  /** Parallelism degree (e.g., for Argon2). */
+  /**
+   * Parallelism degree for Argon2id (number of threads to use).
+   */
   parallelism?: number;
-  /** Legacy alias for salt. */
+  /** Legacy alias for salt - discouraged in new code. */
   hash?: string | Uint8Array;
 }
 

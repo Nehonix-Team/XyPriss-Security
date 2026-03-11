@@ -5,9 +5,9 @@ XyPriss Security is an enterprise-grade cryptographic framework for the Bun runt
 ## Core Principles
 
 - **Performance**: Optimized atomic FFI calls bypass the overhead of standard JavaScript cryptographic implementations.
-- **Modern Standards**: Native support for AES-256-GCM, Argon2id, SHA-256, and Post-Quantum algorithms (Kyber-768).
+- **Modern Standards**: Native support for AES-256-GCM, Argon2id, PBKDF2, HKDF, and Post-Quantum algorithms (Kyber-768).
 - **Security by Default**: Automatic memory sanitization and secure key derivation patterns.
-- **Developer Experience**: Familiar Node-like APIs with extended capabilities through `SecureBuffer`.
+- **Developer Experience**: Familiar Node-like APIs with extended capabilities through `SecureBuffer` and the unified `Cipher` class.
 
 ## Documentation
 
@@ -29,47 +29,77 @@ The framework documentation is modularized for clarity and depth.
 ### Installation
 
 ```bash
-bun add xypriss-security
+xfpm add xypriss-security
 ```
 
-### Basic Cryptography
+### The Unified `Cipher` API (Compatibility)
+
+For maximum convenience and compatibility with previous versions, use the `Cipher` class. It aggregates `Hash`, `Random`, and `XSec` into a single entry point.
 
 ```typescript
-import { Hash, Random } from "xypriss-security";
+import { Cipher } from "xypriss-security";
 
+// --- RANDOM & TOKENS ---
 // Generate 32 secure random bytes
-const bytes = Random.getRandomBytes(32);
+const bytes = Cipher.random.getRandomBytes(32);
+console.log(bytes.toString("hex"));
 
-// Create a SHA-256 hash
-const digest = Hash.create("sensitive-payload");
-console.log(digest); // Returns hex by default
+// Generate a secure integer in range [1000, 9999]
+const pin = Cipher.random.Int(1000, 9999);
+
+// Create a high-entropy API key
+const apiKey = Cipher.XSec.generateAPIKey({ prefix: "sk_live" });
+
+// --- HASHING & PKCE ---
+// Create a standard SHA-256 hash
+const digest = Cipher.hash.create("sensitive-payload");
+
+// Generate a PKCE Code Challenge for OAuth2
+const challenge = Cipher.hash.pkce("verifier-string-123");
+
+// --- KEY DERIVATION (PBKDF2) ---
+const derivedKey = await Cipher.hash.create("my-password", {
+  algorithm: "pbkdf2",
+  iterations: 200000,
+  salt: "unique-salt-string",
+});
 ```
 
-### Secure Caching
+### Professional Passwords (Argon2id)
 
-The caching system automatically handles encryption and compression.
+XyPriss uses Argon2id by default, providing superior resistance to GPU/ASIC cracking.
+
+```typescript
+import { pm } from "xypriss-security"; // 'pm' is an alias for PasswordManager
+
+const hash = await pm.hash("user-password-123", {
+  memoryCost: 65536, // 64MB
+  parallelism: 4,
+});
+
+const isValid = await pm.verify("user-password-123", hash);
+```
+
+### Ultra-Fast Secure Caching (UFSIMC)
+
+The caching system automatically handles encryption and compression using the Go core.
 
 ```typescript
 import { Cache } from "xypriss-security";
 
-// Instantiate/Use the singleton Cache
-await Cache.set("session_key", { user: "admin" }, { ttl: 3600000 });
+// Stores data securely with a 1-hour TTL
+await Cache.set(
+  "session:88",
+  { role: "admin", permissions: ["*"] },
+  { ttl: 3600 },
+);
 
-const data = await Cache.get("session_key");
-```
-
-### Professional Passwords
-
-```typescript
-import { Password } from "xypriss-security";
-
-const hash = await Password.hash("secure-password");
-const isValid = await Password.verify("secure-password", hash);
+const session = await Cache.get("session:88");
 ```
 
 ## Performance Benchmarks
 
-XyPriss Security leverages a multi-threaded Go core, consistently outperforming native JavaScript implementations in intensive cryptographic tasks:
+XyPriss Security leverages a multi-threaded Go core, consistently outperforming native JavaScript implementations:
 
 | Operation | Standard JS | XyPriss (Go Core) | Improvement |
 | --------- | ----------- | ----------------- | ----------- |
@@ -77,22 +107,17 @@ XyPriss Security leverages a multi-threaded Go core, consistently outperforming 
 | AES-GCM   | ~12ms       | ~2ms              | 6x          |
 | SHA-256   | ~5ms        | ~0.8ms            | 6.2x        |
 
-## Binary Handling with SecureBuffer
+## Binary Handling with `SecureBuffer`
 
-`SecureBuffer` extends the standard `Uint8Array` to support multiple encodings directly, including native `Strulink` support.
+`SecureBuffer` extends standard `Uint8Array` to support multiple encodings directly, optimized for security contexts.
 
 ```typescript
+import { Random } from "xypriss-security";
+
 const data = Random.getRandomBytes(32);
-console.log(data.toString("base64"));
-console.log(data.toString("hex"));
+console.log(data.toString("base64")); // Output as Base64
+console.log(data.toString("binary")); // Output as Binary String
 ```
-
-## Environment Configuration
-
-| Variable               | Description                                               |
-| ---------------------- | --------------------------------------------------------- |
-| `XYPRISS_SEC_WARNINGS` | Set to `silent` to suppress console security notices.     |
-| `ENC_SECRET_KEY`       | Optional 32-byte hex key for persistent cache encryption. |
 
 ## License
 

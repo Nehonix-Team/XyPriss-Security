@@ -80,12 +80,18 @@ extern "C" {
 #endif
 
 extern void InitializeEngine(int workers);
-extern char* HashPassword(char* pass, char* algo);
+extern char* HashPassword(char* pass, char* algo, int iterations, int memory, int parallelism);
 extern int VerifyPassword(char* pass, char* hashEncoded);
-extern char* GeneratePassword(int length);
+extern char* GeneratePassword(int length, char* charset);
 extern char* GetRandomBytes(int length);
+extern long int GetRandomInt(long int max);
+extern char* GenerateOTP(int digitCount);
+extern char* GetHash(char* data, int length, char* algo);
 extern char* GetSHA256(char* data, int length);
-extern char* GetHMAC(char* key, int keyLen, char* data, int dataLen);
+extern char* GetHMAC(char* key, int keyLen, char* data, int dataLen, char* algo);
+extern char* HKDF(char* ikm, int ikmLen, char* salt, int saltLen, char* info, int infoLen, int outputLen);
+extern char* PBKDF2(char* pass, char* salt, int saltLen, int iterations, int keyLen, char* algo);
+extern int ConstantTimeCompare(char* a, int aLen, char* b, int bLen);
 extern char* Encrypt(char* pass, char* key, char* algo);
 extern char* Decrypt(char* encrypted, char* key, char* algo);
 extern char* EncryptRaw(char* data, int dataLen, char* key, int keyLen, char* algo);
@@ -93,6 +99,8 @@ extern char* DecryptRaw(char* encrypted, char* key, char* algo, int keyLen);
 extern void RunNTT(char* data);
 extern int SampleLWEError();
 extern char* KyberGenerateKeyPair();
+extern char* GenerateX25519KeyPair();
+extern char* DeriveSharedSecretX25519(char* priv, char* pub);
 extern void FreeString(char* str);
 
 #ifdef __cplusplus

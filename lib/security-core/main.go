@@ -18,6 +18,7 @@ import (
 	"github.com/nehonix/xypriss-security-core/internal/quantum/kyber"
 	"github.com/nehonix/xypriss-security-core/internal/quantum/lwe"
 	"github.com/nehonix/xypriss-security-core/internal/quantum/ntt"
+	"golang.org/x/crypto/argon2"
 )
 
 /**
@@ -37,7 +38,7 @@ func InitializeEngine(workers C.int) {
 // --- PASSWORDS ---
 
 //export HashPassword
-func HashPassword(pass *C.char, algo *C.char) *C.char {
+func HashPassword(pass *C.char, algo *C.char, iterations C.int, memory C.int, parallelism C.int) *C.char {
 	p := C.GoString(pass)
 	a := C.GoString(algo)
 	var hash string
@@ -45,16 +46,40 @@ func HashPassword(pass *C.char, algo *C.char) *C.char {
 
 	switch a {
 	case "scrypt":
+		// Scrypt params could also be added, but for now fixed production defaults
 		hash, err = password.HashScrypt(p)
+	case "pbkdf2":
+		hash, err = password.HashPBKDF2(p, int(iterations))
+	case "argon2id":
+		params := password.DefaultArgon2
+		if iterations > 0 {
+			params.Time = uint32(iterations)
+		}
+		if memory > 0 {
+			params.Memory = uint32(memory)
+		}
+		if parallelism > 0 {
+			params.Threads = uint8(parallelism)
+		}
+		
+		salt, _ := crypto.RandomBytes(16)
+		h := argon2.IDKey([]byte(p), salt, params.Time, params.Memory, params.Threads, params.KeyLen)
+		
+		b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+		b64Hash := base64.RawStdEncoding.EncodeToString(h)
+		pStr := fmt.Sprintf("v=%d,m=%d,t=%d,p=%d", argon2.Version, params.Memory, params.Time, params.Threads)
+		hash = fmt.Sprintf("$xypriss$argon2id$%s$%s$%s", pStr, b64Salt, b64Hash)
 	default:
 		hash, err = password.HashArgon2id(p)
 	}
+
 
 	if err != nil {
 		return C.CString("error: " + err.Error())
 	}
 	return C.CString(hash)
 }
+
 
 //export VerifyPassword
 func VerifyPassword(pass *C.char, hashEncoded *C.char) C.int {
@@ -67,10 +92,12 @@ func VerifyPassword(pass *C.char, hashEncoded *C.char) C.int {
 }
 
 //export GeneratePassword
-func GeneratePassword(length C.int) *C.char {
-	p := password.Generate(int(length), "")
+func GeneratePassword(length C.int, charset *C.char) *C.char {
+	c := C.GoString(charset)
+	p := password.Generate(int(length), c)
 	return C.CString(p)
 }
+
 
 //export GetRandomBytes
 func GetRandomBytes(length C.int) *C.char {
@@ -81,22 +108,121 @@ func GetRandomBytes(length C.int) *C.char {
 	return C.CString(hex.EncodeToString(b))
 }
 
+//export GetRandomInt
+func GetRandomInt(max C.long) C.long {
+	val, err := crypto.RandomInt63(int64(max))
+	if err != nil {
+		return -1
+	}
+	return C.long(val)
+}
+
+
+//export GenerateOTP
+func GenerateOTP(digitCount C.int) *C.char {
+	otp, err := crypto.GenerateOTP(int(digitCount))
+	if err != nil {
+		return C.CString("error: " + err.Error())
+	}
+	return C.CString(otp)
+}
+
+
 // --- STANDALONE CRYPTO (REPLACING EXTERNAL JS CRYPTO) ---
+
+//export GetHash
+func GetHash(data *C.char, length C.int, algo *C.char) *C.char {
+	b := C.GoBytes(unsafe.Pointer(data), length)
+	a := strings.ToLower(C.GoString(algo))
+
+	var h []byte
+	var err error
+
+	switch a {
+	case "sha512":
+		h = crypto.SHA512(b)
+	case "sha3-256":
+		h = crypto.SHA3_256(b)
+	case "blake2b":
+		h, err = crypto.Blake2b256(b)
+	default:
+		h = crypto.SHA256(b)
+	}
+
+	if err != nil {
+		return C.CString("error: " + err.Error())
+	}
+	return C.CString(hex.EncodeToString(h))
+}
 
 //export GetSHA256
 func GetSHA256(data *C.char, length C.int) *C.char {
-	b := C.GoBytes(unsafe.Pointer(data), length)
-	h := crypto.SHA256(b)
-	return C.CString(hex.EncodeToString(h))
+	return GetHash(data, length, C.CString("sha256"))
 }
 
 //export GetHMAC
-func GetHMAC(key *C.char, keyLen C.int, data *C.char, dataLen C.int) *C.char {
+func GetHMAC(key *C.char, keyLen C.int, data *C.char, dataLen C.int, algo *C.char) *C.char {
 	k := C.GoBytes(unsafe.Pointer(key), keyLen)
 	d := C.GoBytes(unsafe.Pointer(data), dataLen)
-	h := crypto.HMAC_SHA256(k, d)
+	a := strings.ToLower(C.GoString(algo))
+
+	var h []byte
+	var err error
+
+	switch a {
+	case "sha512":
+		h = crypto.HMAC_SHA512(k, d)
+	case "blake2b":
+		h, err = crypto.Blake2bMAC(k, d)
+	default:
+		h = crypto.HMAC_SHA256(k, d)
+	}
+
+	if err != nil {
+		return C.CString("error: " + err.Error())
+	}
 	return C.CString(hex.EncodeToString(h))
 }
+
+//export HKDF
+func HKDF(ikm *C.char, ikmLen C.int, salt *C.char, saltLen C.int, info *C.char, infoLen C.int, outputLen C.int) *C.char {
+	ikmB := C.GoBytes(unsafe.Pointer(ikm), ikmLen)
+	saltB := C.GoBytes(unsafe.Pointer(salt), saltLen)
+	infoB := C.GoBytes(unsafe.Pointer(info), infoLen)
+
+	out, err := crypto.HKDF(ikmB, saltB, infoB, int(outputLen))
+	if err != nil {
+		return C.CString("error: " + err.Error())
+	}
+	return C.CString(hex.EncodeToString(out))
+}
+
+//export PBKDF2
+func PBKDF2(pass *C.char, salt *C.char, saltLen C.int, iterations C.int, keyLen C.int, algo *C.char) *C.char {
+	p := []byte(C.GoString(pass))
+	s := C.GoBytes(unsafe.Pointer(salt), saltLen)
+	a := strings.ToLower(C.GoString(algo))
+
+	var h []byte
+	if a == "sha512" {
+		h = crypto.PBKDF2SHA512(p, s, int(iterations), int(keyLen))
+	} else {
+		h = crypto.PBKDF2SHA256(p, s, int(iterations), int(keyLen))
+	}
+
+	return C.CString(hex.EncodeToString(h))
+}
+
+//export ConstantTimeCompare
+func ConstantTimeCompare(a *C.char, aLen C.int, b *C.char, bLen C.int) C.int {
+	aB := C.GoBytes(unsafe.Pointer(a), aLen)
+	bB := C.GoBytes(unsafe.Pointer(b), bLen)
+	if crypto.ConstantTimeEqual(aB, bB) {
+		return 1
+	}
+	return 0
+}
+
 
 //export Encrypt
 func Encrypt(pass *C.char, key *C.char, algo *C.char) *C.char {
@@ -228,6 +354,39 @@ func KyberGenerateKeyPair() *C.char {
 	}
 	return C.CString(fmt.Sprintf("%s:%s", base64.StdEncoding.EncodeToString(kp.PublicKey), base64.StdEncoding.EncodeToString(kp.PrivateKey)))
 }
+
+//export GenerateX25519KeyPair
+func GenerateX25519KeyPair() *C.char {
+	pub, priv, err := crypto.GenerateX25519KeyPair()
+	if err != nil {
+		return C.CString("error: " + err.Error())
+	}
+	return C.CString(fmt.Sprintf("%s:%s", hex.EncodeToString(pub[:]), hex.EncodeToString(priv[:])))
+}
+
+//export DeriveSharedSecretX25519
+func DeriveSharedSecretX25519(priv *C.char, pub *C.char) *C.char {
+	privHex := C.GoString(priv)
+	pubHex := C.GoString(pub)
+
+	privBytes, _ := hex.DecodeString(privHex)
+	pubBytes, _ := hex.DecodeString(pubHex)
+
+	if len(privBytes) != 32 || len(pubBytes) != 32 {
+		return C.CString("error: keys must be 32 bytes")
+	}
+
+	var privArr, pubArr [32]byte
+	copy(privArr[:], privBytes)
+	copy(pubArr[:], pubBytes)
+
+	shared, err := crypto.DeriveSharedSecretX25519(privArr, pubArr)
+	if err != nil {
+		return C.CString("error: " + err.Error())
+	}
+	return C.CString(hex.EncodeToString(shared[:]))
+}
+
 
 //export FreeString
 func FreeString(str *C.char) {

@@ -7,7 +7,9 @@
 
 export * from "./encoding";
 
-import { Hash, Random } from "../core/index";
+import { Hash } from "../core/Hash";
+import { Random } from "../core/Random";
+
 import { Bridge } from "../core/bridge";
 
 /**

@@ -82,6 +82,25 @@ func HashScrypt(password string) (string, error) {
 	return wrapWithXyPriss("scrypt", "n=32768,r=8,p=1", b64Salt, b64Hash), nil
 }
 
+// HashPBKDF2 calculates a signed PBKDF2 hash.
+func HashPBKDF2(password string, iterations int) (string, error) {
+	salt := make([]byte, 16)
+	if _, err := rand.Read(salt); err != nil {
+		return "", err
+	}
+	if iterations <= 0 {
+		iterations = 100000
+	}
+
+	hash := pbkdf2.Key([]byte(password), salt, iterations, 32, sha256.New)
+
+	b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+	b64Hash := base64.RawStdEncoding.EncodeToString(hash)
+	params := fmt.Sprintf("i=%d", iterations)
+
+	return wrapWithXyPriss("pbkdf2", params, b64Salt, b64Hash), nil
+}
+
 // Verify checks a password against a signed XyPriss hash.
 func Verify(password, encodedHash string) bool {
 	if !strings.HasPrefix(encodedHash, XyPrissSignature) {
@@ -119,14 +138,24 @@ func Verify(password, encodedHash string) bool {
 				fmt.Sscanf(pp, "p=%d", &p)
 			}
 		}
-		if t < 1 { t = 1 }
-		if p < 1 { p = 1 }
-		if m < 8 { m = 8 }
+		if t < 1 {
+			t = 1
+		}
+		if p < 1 {
+			p = 1
+		}
+		if m < 8 {
+			m = 8
+		}
 		comparisonHash = argon2.IDKey([]byte(password), salt, t, m, p, uint32(len(decodedHash)))
 	case "scrypt":
 		comparisonHash, _ = scrypt.Key([]byte(password), salt, 32768, 8, 1, 32)
 	case "pbkdf2":
-		comparisonHash = pbkdf2.Key([]byte(password), salt, 100000, 32, sha256.New)
+		it := 100000
+		if strings.HasPrefix(params, "i=") {
+			fmt.Sscanf(params, "i=%d", &it)
+		}
+		comparisonHash = pbkdf2.Key([]byte(password), salt, it, 32, sha256.New)
 	}
 
 	return constantTimeCompare(decodedHash, comparisonHash)
@@ -142,3 +171,4 @@ func constantTimeCompare(a, b []byte) bool {
 	}
 	return diff == 0
 }
+
