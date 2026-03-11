@@ -1,8 +1,8 @@
 /***************************************************************************
- * XyPriss Security - Unified Core Provisioner (Build or Download)
+ * XyPriss Security - Unified Core Provisioner (Download Only)
+ * Optimized for production deployments (no Go required).
  ****************************************************************************/
 
-const { spawnSync } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const https = require("https");
@@ -11,16 +11,20 @@ const corePath = path.join(__dirname, "../lib/security-core");
 const platform = process.platform;
 const arch = process.arch;
 
-let extension = ".so";
-if (platform === "win32") extension = ".dll";
-if (platform === "darwin") extension = ".dylib";
+let extension = "";
+if (platform === "win32") extension = ".exe";
 
 const outFile = `libxypriss_core${extension}`;
 const destPath = path.join(corePath, outFile);
 
+// Ensure directory exists
+if (!fs.existsSync(corePath)) {
+  fs.mkdirSync(corePath, { recursive: true });
+}
+
 // Professional OS/Arch labels for release assets
 const osLabel =
-  platform === "win32" ? "windows" : platform === "darwin" ? "macos" : "linux";
+  platform === "win32" ? "windows" : platform === "darwin" ? "darwin" : "linux";
 const archLabel = arch === "x64" ? "amd64" : arch === "arm64" ? "arm64" : arch;
 
 const releaseFileName = `libxypriss_core-${osLabel}-${archLabel}${extension}`;
@@ -69,46 +73,15 @@ function downloadBinary(url = releaseUrl) {
   });
 }
 
-/**
- * Builds the core from source using Go
- */
-function buildFromSource() {
-  console.log(`\n🚀 Attempting to build from source...`);
-
-  // Check if Go is installed
-  const goCheck = spawnSync("go", ["version"]);
-  if (goCheck.status !== 0) {
-    console.log("⚠️  Go (golang) not found in PATH.");
-    return false;
-  }
-
-  const buildArgs = ["build", "-o", outFile, "-buildmode=c-shared", "main.go"];
-
-  console.log(`🔨 Executing: go ${buildArgs.join(" ")}`);
-
-  const build = spawnSync("go", buildArgs, {
-    cwd: corePath,
-    stdio: "inherit",
-  });
-
-  return build.status === 0;
-}
-
 async function run() {
-  // 1. Try to build from source (Preferred for optimization)
-  if (buildFromSource()) {
-    console.log(`\n✅ Core built successfully from source.\n`);
-    return;
-  }
-
-  // 2. Build failed or Go missing, try downloading
   try {
     await downloadBinary();
     console.log(`\n✅ Ready for high-performance operations.\n`);
+    process.exit(0);
   } catch (error) {
     console.error(`\n❌ Provisioning failed: ${error.message}`);
     console.error(
-      `ℹ️  Please ensure you have Go installed or check your internet connection.\n`,
+      `ℹ️  Please check your internet connection or manually install the core at ${outFile}.\n`,
     );
     process.exit(1);
   }

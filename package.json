@@ -1,18 +1,25 @@
 {
   "name": "xypriss-security",
-  "version": "2.0.0-gcu",
+  "version": "2.0.6",
   "description": "Advanced High-Performance Security Framework powered by a Go Core. Military-grade encryption, post-quantum resilience, and fortified data structures.",
   "author": {
     "name": "NEHONIX",
     "url": "https://nehonix.com"
   },
+  "files": [
+    "dist",
+    "scripts"
+  ],
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "scripts": {
-    "build": "npm run build:core && npm run build:ts",
+    "build": "xfpm run build:ts",
     "build:core": "node scripts/build-core.js",
     "build:ts": "rimraf dist && tsc",
+    "build:release": "bash scripts/release-build.sh",
+    "build:all": "npm run build && npm run build:release",
     "postinstall": "node scripts/build-core.js",
+    "prepublishOnly": "npm run build",
     "test": "bun run lib/test_ultra_robust.ts"
   },
   "dependencies": {
