@@ -9,11 +9,13 @@
  ****************************************************************************/
 
 import { Bridge } from "./bridge";
+import { SecureBuffer } from "./SecureBuffer";
+
 import {
   HashOptions,
   SecureTokenOptions,
   PasswordHashOptions,
-  APIKeyOptions, 
+  APIKeyOptions,
   SessionTokenOptions,
 } from "../types";
 
@@ -102,15 +104,9 @@ export class Random {
    * @param length - The number of random bytes to generate.
    * @returns A Uint8Array containing random bytes.
    */
-  public static getRandomBytes(length: number): Uint8Array & {
-    getBuffer: () => Buffer;
-    toUint8Array: () => Uint8Array;
-  } {
-    const arr = Bridge.getRandomBytes(length);
-    return Object.assign(arr, {
-      getBuffer: () => Buffer.from(arr),
-      toUint8Array: () => arr,
-    });
+  public static getRandomBytes(length: number): SecureBuffer {
+    const bytes = Bridge.getRandomBytes(length);
+    return new SecureBuffer(bytes);
   }
 }
 
@@ -177,5 +173,6 @@ export class XyPrissSecurity {
 }
 
 export * from "./keys";
+export * from "./SecureBuffer";
 export { Password as pm }; // Alias for Password
 export { XyPrissSecurity as XSec }; // Alias for XyPrissSecurity

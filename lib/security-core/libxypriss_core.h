@@ -89,7 +89,7 @@ extern char* GetHMAC(char* key, int keyLen, char* data, int dataLen);
 extern char* Encrypt(char* pass, char* key, char* algo);
 extern char* Decrypt(char* encrypted, char* key, char* algo);
 extern char* EncryptRaw(char* data, int dataLen, char* key, int keyLen, char* algo);
-extern char* DecryptRaw(char* encrypted, char* key, int keyLen, char* algo);
+extern char* DecryptRaw(char* encrypted, char* key, char* algo, int keyLen);
 extern void RunNTT(char* data);
 extern int SampleLWEError();
 extern char* KyberGenerateKeyPair();

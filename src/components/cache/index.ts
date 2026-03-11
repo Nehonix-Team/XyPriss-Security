@@ -168,7 +168,16 @@ import { SecureCacheClient } from "./SCC";
  *
  * @since 4.2.2
  */
-export const Cache = new SecureInMemoryCache();
+let _Cache: SecureInMemoryCache | null = null;
+export const Cache = new Proxy({} as SecureInMemoryCache, {
+  get(target, prop) {
+    if (!_Cache) {
+      _Cache = new SecureInMemoryCache();
+    }
+    const value = (_Cache as any)[prop];
+    return typeof value === "function" ? value.bind(_Cache) : value;
+  },
+});
 /**
  * SecureInMemoryCache class for creating custom cache instances
  *

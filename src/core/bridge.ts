@@ -57,9 +57,10 @@ const lib = dlopen(libPath, {
     returns: FFIType.ptr,
   },
   DecryptRaw: {
-    args: [FFIType.ptr, FFIType.ptr, FFIType.i32, FFIType.ptr],
+    args: [FFIType.ptr, FFIType.ptr, FFIType.ptr, FFIType.i32],
     returns: FFIType.ptr,
   },
+
   KyberGenerateKeyPair: {
     args: [],
     returns: FFIType.ptr,
@@ -171,8 +172,8 @@ export const Bridge = {
       lib.symbols.DecryptRaw(
         ptr(Buffer.from(encryptedHex + "\0")),
         ptr(kBuf),
-        kBuf.length,
         ptr(Buffer.from(algo + "\0")),
+        kBuf.length,
       ),
     );
   },

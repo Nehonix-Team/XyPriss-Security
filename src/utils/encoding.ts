@@ -901,18 +901,6 @@ export function padBuffer(
     return padded;
 }
 
-/**
- * Calculate checksum of a buffer (simple XOR checksum)
- * @param buffer - The buffer to checksum
- * @returns Checksum value
- */
-export function simpleChecksum(buffer: Uint8Array): number {
-    let checksum = 0;
-    for (let i = 0; i < buffer.length; i++) {
-        checksum ^= buffer[i];
-    }
-    return checksum;
-}
 
 /**
  * Split a buffer into chunks

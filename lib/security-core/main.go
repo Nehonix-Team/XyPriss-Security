@@ -179,10 +179,10 @@ func EncryptRaw(data *C.char, dataLen C.int, key *C.char, keyLen C.int, algo *C.
 // DecryptRaw decrypts raw binary data using nonce:authTag:ciphertext hex format.
 
 //export DecryptRaw
-func DecryptRaw(encrypted *C.char, key *C.char, keyLen C.int, algo *C.char) *C.char {
+func DecryptRaw(encrypted *C.char, key *C.char, algo *C.char, keyLen C.int) *C.char {
 	parts := C.GoString(encrypted)
-	k := C.GoBytes(unsafe.Pointer(key), keyLen)
 	a := C.GoString(algo)
+	k := C.GoBytes(unsafe.Pointer(key), keyLen)
 
 	meta := strings.Split(parts, ":")
 	if len(meta) != 3 {
