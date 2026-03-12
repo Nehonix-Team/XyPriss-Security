@@ -111,13 +111,52 @@ export function loadEFFWordlist(
   const { dir, variant = "large", filePath } = options;
 
   // ── Resolve path ────────────────────────────────────────────────────────────
-  let absolutePath: string;
+  let absolutePath: string | undefined;
 
   if (filePath) {
     absolutePath = resolve(filePath);
+  } else if (dir) {
+    absolutePath = resolve(dir, EFF_FILENAMES[variant]);
   } else {
-    const baseDir = dir ? resolve(dir) : process.cwd();
-    absolutePath = resolve(baseDir, EFF_FILENAMES[variant]);
+    const fs = require("fs");
+    const targetFile = EFF_FILENAMES[variant];
+
+    const possiblePaths = [
+      // 1. Direct sibling (production: dist/src/mods or dev: src/mods)
+      resolve(__dirname, targetFile),
+      // 2. process.cwd() fallback
+      resolve(process.cwd(), "src", "mods", targetFile),
+      resolve(process.cwd(), "dist", "src", "mods", targetFile),
+      // 3. node_modules lookup
+      resolve(
+        process.cwd(),
+        "node_modules",
+        "xypriss-security",
+        "dist",
+        "src",
+        "mods",
+        targetFile,
+      ),
+    ];
+
+    for (const p of possiblePaths) {
+      try {
+        if (fs.existsSync(p)) {
+          const stats = fs.statSync(p);
+          if (stats.isFile()) {
+            absolutePath = p;
+            break;
+          }
+        }
+      } catch (e) {
+        // Ignore errors for specific path checks
+      }
+    }
+
+    if (!absolutePath) {
+      // Final fallback (will trigger caught exception in the read step)
+      absolutePath = resolve(__dirname, targetFile);
+    }
   }
 
   // ── Read file ───────────────────────────────────────────────────────────────
