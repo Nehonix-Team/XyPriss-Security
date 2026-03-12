@@ -55,4 +55,15 @@ export class Password {
     const finalPassword = options.pepper ? password + options.pepper : password;
     return Bridge.verifyPassword(finalPassword, hash);
   }
+
+  /**
+   * Checks if a string is a valid XyPriss hash.
+   *
+   * @param hash - The string to check.
+   * @param algorithm - Optional algorithm name to check against.
+   * @returns True if it's a valid hash, otherwise false.
+   */
+  public static isHashed(hash: string, algorithm?: string): boolean {
+    return Bridge.isHashed(hash, algorithm);
+  }
 }

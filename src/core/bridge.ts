@@ -99,6 +99,9 @@ export const Bridge = {
   verifyPassword: (pass: string, hash: string) =>
     Bridge._call("verify-password", pass, hash) === "1",
 
+  isHashed: (hash: string, algo?: string) =>
+    Bridge._call("is-hashed", hash, algo) === "1",
+
   generatePassword: (len: number, charset: string = "") =>
     Bridge._call("generate-password", len, charset),
 

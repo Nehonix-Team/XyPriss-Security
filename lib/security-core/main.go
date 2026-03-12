@@ -99,7 +99,28 @@ func main() {
 			fmt.Print("0")
 		}
 
-	case "generate-password":
+	case "is-hashed":
+		if len(args) < 1 {
+			errorExit("missing hash for is-hashed")
+		}
+		expectedAlgo := ""
+		if len(args) > 1 {
+			expectedAlgo = args[1]
+		}
+
+		result := false
+		if expectedAlgo != "" {
+			result = password.IsHashedWithAlgo(args[0], expectedAlgo)
+		} else {
+			result = password.IsHashed(args[0])
+		}
+
+		if result {
+			fmt.Print("1")
+		} else {
+			fmt.Print("0")
+		}
+
 		if len(args) < 2 {
 			errorExit("missing arguments for generate-password")
 		}

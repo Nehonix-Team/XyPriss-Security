@@ -116,6 +116,18 @@ export class PasswordManager {
     return Password.verify(finalPassword, hash);
   }
 
+  /**
+   * Checks if a string is a valid XyPriss hash, optionally matching
+   * this manager's current algorithm.
+   *
+   * @param hash - The string to check.
+   * @param strict - If `true`, only returns `true` if the hash matches the manager's algorithm.
+   * @returns `true` if it's a valid hash, `false` otherwise.
+   */
+  public isHashed(hash: string, strict: boolean = true): boolean {
+    return Password.isHashed(hash, strict ? this.algo : undefined);
+  }
+
   // ─── Generation ────────────────────────────────────────────────────────────
 
   /**
@@ -584,4 +596,3 @@ export class PasswordManager {
     };
   }
 }
-

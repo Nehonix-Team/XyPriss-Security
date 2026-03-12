@@ -161,6 +161,24 @@ func Verify(password, encodedHash string) bool {
 	return constantTimeCompare(decodedHash, comparisonHash)
 }
 
+// IsHashed checks if a string is a valid XyPriss hash.
+func IsHashed(encodedHash string) bool {
+	return strings.HasPrefix(encodedHash, XyPrissSignature)
+}
+
+// IsHashedWithAlgo checks if a string is a valid XyPriss hash specifically for a given algorithm.
+func IsHashedWithAlgo(encodedHash string, expectedAlgo string) bool {
+	if !strings.HasPrefix(encodedHash, XyPrissSignature) {
+		return false
+	}
+	raw := encodedHash[len(XyPrissSignature):]
+	parts := strings.Split(raw, "$")
+	if len(parts) < 1 {
+		return false
+	}
+	return parts[0] == expectedAlgo
+}
+
 func constantTimeCompare(a, b []byte) bool {
 	if len(a) != len(b) || len(a) == 0 {
 		return false
