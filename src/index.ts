@@ -1,11 +1,13 @@
 /***************************************************************************
  * XyPriss Security - Advanced Hyper-Modular Security Framework
  *
- * @author NEHONIX (iDevo - https://github.com/iDevo-ll)
+ * @author NEHONIX (Nehonix-Team - https://github.com/Nehonix-Team)
  * @license Nehonix Open Source License (NOSL)
  *
  * Copyright (c) 2025 NEHONIX. All rights reserved.
  ****************************************************************************/
+
+export { Password } from "./core/Password";
 
 /**
  * # XyPriss Security
@@ -23,3 +25,11 @@ export * from "./components/index";
 export * from "./utils/index";
 export * from "./components/encryption/index";
 export * from "./components/serializer";
+export * from "./components/cache/SecureCacheAdapter";
+
+export {
+  CHARSETS,
+  MIN_GENERATE_LENGTH,
+  MAX_GENERATE_LENGTH,
+  getWordlist,
+} from "./mods/PasswordMDict";

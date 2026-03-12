@@ -4,7 +4,7 @@
  * An enhanced Uint8Array that provides familiar encoding methods
  * similar to Node.js Buffer, optimized for security operations.
  *
- * @author NEHONIX (iDevo - https://github.com/iDevo-ll)
+ * @author NEHONIX (Nehonix-Team - https://github.com/Nehonix-Team)
  * @license Nehonix Open Source License (NOSL)
  ****************************************************************************/
 

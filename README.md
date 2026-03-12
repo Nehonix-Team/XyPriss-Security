@@ -74,12 +74,15 @@ XyPriss uses Argon2id by default, providing superior resistance to GPU/ASIC crac
 ```typescript
 import { pm } from "xypriss-security"; // 'pm' is an alias for PasswordManager
 
-const hash = await pm.hash("user-password-123", {
-  memoryCost: 65536, // 64MB
+// 1. Configure once per app
+const passwords = new pm({
+  memoryCost: 65536, // 64MiB
   parallelism: 4,
 });
 
-const isValid = await pm.verify("user-password-123", hash);
+// 2. Use everywhere
+const hash = await passwords.hash("user-password-123");
+const isValid = await passwords.verify("user-password-123", hash);
 ```
 
 ### Ultra-Fast Secure Caching (UFSIMC)

@@ -7,7 +7,7 @@ The Core module provides the foundational cryptographic primitives and binary ha
 - [Cipher](#cipher-compatibility) (Compatibility Entry Point)
 - [Hash](#hash)
 - [Random](#random)
-- [Password](#password)
+- [PasswordManager (`pm`)](#passwordmanager-pm)
 - [SecureBuffer](#securebuffer)
 - [XyPrissSecurity](#xyprisssecurity)
 
@@ -98,19 +98,58 @@ Generates a secure alphanumeric random token. Supports character set constraints
 
 ---
 
-## Password
+## PasswordManager (`pm`)
 
-Secure password hashing (Argon2id/Scrypt).
+Configurable, instance-based secure password management (hashing, verifying, and generating). Exported as `PasswordManager` and aliased as `pm`.
 
-### static async hash(password, options?)
+### Initialization
 
-Hashes a password with memory-hard parameters.
+```typescript
+import { pm } from "xypriss-security";
+
+const passwords = new pm({
+  algorithm: "argon2id",
+  memoryCost: 65536,
+  parallelism: 4,
+  iterations: 3,
+  pepper: "optional-secret-pepper",
+});
+```
+
+### async hash(password, overrides?)
+
+Hashes a password with the instance's pre-configured memory-hard parameters.
+
+**Returns:** `Promise<string>` (Argon2id PHC string)
+
+### async verify(password, hash)
+
+Verifies a plain-text password against a stored hash.
+
+**Returns:** `Promise<boolean>`
+
+### generate(options?)
+
+Generates a cryptographically secure random password matching specific criteria.
 
 **Options:**
 
-- `memoryCost`: Memory usage in KB (Default: 65536).
-- `parallelism`: Number of threads (Default: 4).
-- `iterations`: Time cost (Default: 3).
+- `length`: number (Default: 20)
+- `uppercase`, `lowercase`, `numbers`, `symbols`: boolean (Default: `true`)
+- `excludeSimilar`: boolean (Default: `false`)
+
+### generatePassphrase(options?)
+
+Generates a memorable, high-entropy passphrase using the EFF wordlist.
+
+**Options:**
+
+- `wordCount`: number (Default: 5)
+- `separator`: string (Default: `"-"`)
+
+### strength(password)
+
+Evaluates the strength of a password and returns a detailed report including score (0-100), label, and actionable suggestions.
 
 ---
 

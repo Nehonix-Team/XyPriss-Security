@@ -4,20 +4,21 @@
  * Provides high-level security classes (Hash, Random, Password, XyPrissSecurity)
  * that wrap the high-performance Go-based core bridge.
  *
- * @author NEHONIX (iDevo - https://github.com/iDevo-ll)
+ * @author NEHONIX (Nehonix-Team - https://github.com/Nehonix-Team)
  * @license Nehonix Open Source License (NOSL)
  ****************************************************************************/
 
 export * from "./Hash";
 export * from "./Random";
 export * from "./Password";
+export * from "./PasswordManager";
 export * from "./XyPrissSecurity";
 export * from "./SecureBuffer";
 export * from "./keys";
 export * from "./bridge";
 
 export { XyPrissSecurity as XSec } from "./XyPrissSecurity"; // Alias for XyPrissSecurity
-export { Password as pm } from "./Password"; // Alias for Password
+export { PasswordManager as pm } from "./PasswordManager"; // Alias for PasswordManager
 
 import { Hash } from "./Hash";
 import { Random } from "./Random";

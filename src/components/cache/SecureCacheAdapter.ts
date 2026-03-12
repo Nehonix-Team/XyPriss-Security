@@ -22,7 +22,7 @@ import { Bridge } from "../../core/bridge";
 import { SecureInMemoryCache } from "./useCache";
 import { CachedData } from "./types/cache.type";
 
-/**
+/** 
  * UF secure cache adapter
  */
 export class SecureCacheAdapter extends EventEmitter {

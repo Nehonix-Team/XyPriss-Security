@@ -5,7 +5,7 @@
  * XyPriss Security framework. It ensures consistent data structures and
  * type safety across all security-related operations.
  *
- * @author NEHONIX (iDevo - https://github.com/iDevo-ll)
+ * @author NEHONIX (Nehonix-Team - https://github.com/Nehonix-Team)
  * @license Nehonix Open Source License (NOSL)
  ****************************************************************************/
 

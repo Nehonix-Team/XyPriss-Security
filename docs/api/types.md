@@ -30,7 +30,7 @@ Used in `Random.generateToken`.
 
 ### PasswordHashOptions
 
-Used in `Password.hash`.
+Used in `PasswordManager` configuration.
 
 - `algorithm`: `"argon2id" | "scrypt" | "pbkdf2"`
 - `iterations`: `number`

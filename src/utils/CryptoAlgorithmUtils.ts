@@ -3,7 +3,7 @@
  *
  * Provides professional metadata and classification for supported algorithms.
  *
- * @author NEHONIX (iDevo - https://github.com/iDevo-ll)
+ * @author NEHONIX (Nehonix-Team - https://github.com/Nehonix-Team)
  * @license Nehonix Open Source License (NOSL)
  ****************************************************************************/
 
