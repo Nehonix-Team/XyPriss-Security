@@ -15,7 +15,7 @@
   "scripts": {
     "build": "xfpm run build:ts",
     "build:core": "node scripts/build-core.js",
-    "build:ts": "rimraf dist && tsc",
+    "build:ts": "rimraf dist && tsc && mkdir -p dist/src/mods && cp src/mods/*.txt dist/src/mods/",
     "build:release": "bash scripts/release-build.sh",
     "build:all": "npm run build && npm run build:release",
     "postinstall": "node scripts/build-core.js",

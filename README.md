@@ -1,15 +1,14 @@
 # XyPriss Security
 
-XyPriss Security is an enterprise-grade cryptographic framework for **Bun** and **Node.js**. It utilizes a high-performance Go-based core engine via native FFI (Foreign Function Interface) to provide military-grade security with sub-millisecond overhead across all major JavaScript environments.
+XyPriss Security is an enterprise-grade cryptographic framework for TypeScript / JavaScript environments. It utilizes a high-performance Go-based core engine compiled as a static, dependency-free CLI binary to provide military-grade security with absolute cross-platform reliability.
 
 ## Core Principles
 
-- **Performance**: Optimized atomic FFI calls bypass the overhead of standard JavaScript cryptographic implementations.
-- **Cross-Runtime**: First-class support for both Bun (`bun:ffi`) and Node.js (`koffi`), automatically detecting the host environment.
+- **Performance**: Optimized execution using lightweight process spawning, bypassing the overhead of standard JavaScript cryptographic implementations without the complexity of CGO.
+- **Universal Portability**: Zero native compilation required. Statically linked pure Go binaries run flawlessly on Linux, Windows, and macOS (amd64/arm64) via a unified interface.
 - **Modern Standards**: Native support for AES-256-GCM, Argon2id, PBKDF2, HKDF, and Post-Quantum algorithms (Kyber-768).
-
 - **Security by Default**: Automatic memory sanitization and secure key derivation patterns.
-- **Zero-Config Native Performance**: Automatically builds the Go core from source or downloads pre-built binaries for your platform during installation.
+- **Zero-Config Installation**: Automatically downloads the exact pre-built binary for your platform during installation (no local Go toolchain required).
 
 ## Documentation
 
