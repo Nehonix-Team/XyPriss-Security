@@ -6,13 +6,14 @@ import { Bridge } from "./bridge";
 import { SecureBuffer } from "./SecureBuffer";
 import { SecureTokenOptions } from "../types";
 import { stringToBuffer } from "../utils";
+import { Keys } from "./keys";
 
 /**
  * ### Random Class
  *
  * Cryptographically secure random number and token generation.
  */
-export class Random {
+export class Random extends Keys {
   /**
    * Generates a readable secure random token with specified constraints.
    *

@@ -15,6 +15,7 @@
 package crypto
 
 import (
+	stdcrypto "crypto"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
@@ -294,6 +295,46 @@ func GenerateRSAKeyPair() (*KeyPair, error) {
 	}, nil
 }
 
+// RSASign signs data using RSA-PSS with SHA-256.
+func RSASign(priv *rsa.PrivateKey, data []byte) ([]byte, error) {
+	hashed := sha256.Sum256(data)
+	return rsa.SignPSS(rand.Reader, priv, stdcrypto.SHA256, hashed[:], nil)
+}
+
+// RSAVerify verifies an RSA-PSS signature.
+func RSAVerify(pub *rsa.PublicKey, data, sig []byte) error {
+	hashed := sha256.Sum256(data)
+	return rsa.VerifyPSS(pub, stdcrypto.SHA256, hashed[:], sig, nil)
+}
+
+// RSAEncrypt encrypts data using RSA-OAEP with SHA-256.
+func RSAEncrypt(pub *rsa.PublicKey, data []byte) ([]byte, error) {
+	return rsa.EncryptOAEP(sha256.New(), rand.Reader, pub, data, nil)
+}
+
+// RSADecrypt decrypts data using RSA-OAEP with SHA-256.
+func RSADecrypt(priv *rsa.PrivateKey, data []byte) ([]byte, error) {
+	return rsa.DecryptOAEP(sha256.New(), rand.Reader, priv, data, nil)
+}
+
+// RSAKeyJSON represents an RSA key pair in JSON format.
+type RSAKeyJSON struct {
+	PublicKey  string `json:"publicKey"`
+	PrivateKey string `json:"privateKey"`
+}
+
+// GenerateRSAKeyJSON generates a 4096-bit RSA key pair and returns it as JSON.
+func GenerateRSAKeyJSON() (*RSAKeyJSON, error) {
+	kp, err := GenerateRSAKeyPair()
+	if err != nil {
+		return nil, err
+	}
+	return &RSAKeyJSON{
+		PublicKey:  string(kp.PublicKey),
+		PrivateKey: string(kp.PrivateKey),
+	}, nil
+}
+
 // HybridEncrypt generates a random AES-256 key, encrypts the plaintext with it,
 // then seals the AES key under the recipient's RSA public key.
 func HybridEncrypt(plaintext, rsaPublicKeyPEM, ad []byte) (*SealedEnvelope, error) {
@@ -307,7 +348,7 @@ func HybridEncrypt(plaintext, rsaPublicKeyPEM, ad []byte) (*SealedEnvelope, erro
 		return nil, fmt.Errorf("hybrid encrypt: payload: %w", err)
 	}
 
-	pub, err := parseRSAPublicKey(rsaPublicKeyPEM)
+	pub, err := ParseRSAPublicKey(rsaPublicKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("hybrid encrypt: parse pubkey: %w", err)
 	}
@@ -326,7 +367,7 @@ func HybridDecrypt(env *SealedEnvelope, rsaPrivateKeyPEM, ad []byte) ([]byte, er
 		return nil, errors.New("hybrid decrypt: nil envelope")
 	}
 
-	priv, err := parseRSAPrivateKey(rsaPrivateKeyPEM)
+	priv, err := ParseRSAPrivateKey(rsaPrivateKeyPEM)
 	if err != nil {
 		return nil, fmt.Errorf("hybrid decrypt: parse privkey: %w", err)
 	}
@@ -453,7 +494,7 @@ func SecureWipe(b []byte) {
 
 // ─── Internal Helpers ────────────────────────────────────────────────────────
 
-func parseRSAPublicKey(pemBytes []byte) (*rsa.PublicKey, error) {
+func ParseRSAPublicKey(pemBytes []byte) (*rsa.PublicKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, errors.New("failed to decode PEM block")
@@ -469,7 +510,7 @@ func parseRSAPublicKey(pemBytes []byte) (*rsa.PublicKey, error) {
 	return rsaPub, nil
 }
 
-func parseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
+func ParseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 	block, _ := pem.Decode(pemBytes)
 	if block == nil {
 		return nil, errors.New("failed to decode PEM block")

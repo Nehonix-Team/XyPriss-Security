@@ -151,6 +151,26 @@ Generates a memorable, high-entropy passphrase using the EFF wordlist.
 
 Evaluates the strength of a password and returns a detailed report including score (0-100), label, and actionable suggestions.
 
+### isHashed(hash, strict?)
+
+Checks whether a string is a valid XyPriss hash. By default, `strict` mode also verifies that the hash matches the algorithm configured for the current instance. Set `strict` to `false` to accept any XyPriss hash regardless of algorithm.
+
+- `hash`: `string` - The string to inspect.
+- `strict`: `boolean` (Default: `true`) - When `true`, validates against the instance algorithm.
+
+**Returns:** `boolean`
+
+**Example:**
+
+```typescript
+const passwords = new pm({ algorithm: "argon2id" });
+const hash = await passwords.hash("user-password");
+
+passwords.isHashed(hash); // true  (argon2id hash, strict mode)
+passwords.isHashed("plaintext"); // false
+passwords.isHashed(hash, false); // true  (any valid XyPriss hash)
+```
+
 ---
 
 ## SecureBuffer
@@ -176,3 +196,32 @@ Generates a structured API key.
 - `prefix`: string (Default: `"xy"`)
 - `includeTimestamp`: boolean (Default: `true`)
 - `randomPartLength`: number (Default: 32)
+
+### static getByteLength(str)
+
+Returns the actual UTF-8 byte count of a string.
+
+- `str`: `string`
+
+**Returns:** `number`
+
+### static isValidByteLength(str, expectedLength)
+
+Verifies that a string has exactly the specified number of UTF-8 bytes. Useful before passing key material to Go operations that require strict byte sizes (e.g. AES-256 requires 32 bytes).
+
+- `str`: `string`
+- `expectedLength`: `number`
+
+**Returns:** `boolean`
+
+**Example:**
+
+```typescript
+import { XyPrissSecurity } from "xypriss-security";
+
+const byteLen = XyPrissSecurity.getByteLength("caf\u00e9"); // 5
+const valid = XyPrissSecurity.isValidByteLength(
+  "32-byte-key-for-aes-256-exactly",
+  32,
+); // true
+```

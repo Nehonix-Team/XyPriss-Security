@@ -15,7 +15,7 @@ export const safeStringify = (obj: any): string =>
 // XyPriss-safe serialization for req/res objects
 export const XyPriStringify = (obj: any): string =>
   SafeSerializer.XyPriStringify(obj, { fastMode: false });
-
+export { XyPriStringify as XStringify };
 // Cache key generation
 export const generateSafeCacheKey = (args: any[], prefix?: string): string =>
   SafeSerializer.generateCacheKey(args, prefix);

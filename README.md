@@ -6,7 +6,7 @@ XyPriss Security is an enterprise-grade cryptographic framework for TypeScript /
 
 - **Performance**: Optimized execution using lightweight process spawning, bypassing the overhead of standard JavaScript cryptographic implementations without the complexity of CGO.
 - **Universal Portability**: Zero native compilation required. Statically linked pure Go binaries run flawlessly on Linux, Windows, and macOS (amd64/arm64) via a unified interface.
-- **Modern Standards**: Native support for AES-256-GCM, Argon2id, PBKDF2, HKDF, and Post-Quantum algorithms (Kyber-768).
+- **Modern Standards**: Native support for AES-256-GCM, Argon2id, PBKDF2, HKDF, RSA-OAEP, RSA-PSS, and Post-Quantum algorithms (Kyber-768).
 - **Security by Default**: Automatic memory sanitization and secure key derivation patterns.
 - **Zero-Config Installation**: Automatically downloads the exact pre-built binary for your platform during installation (no local Go toolchain required).
 
@@ -16,7 +16,8 @@ The framework documentation is modularized for clarity and depth.
 
 ### Modules
 
-- [Core](docs/modules/core.md) - Foundational primitives (Hash, Random, Password, SecureBuffer).
+- [Core](docs/modules/core.md) - Foundational primitives (Hash, Random, Password, SecureBuffer, XyPrissSecurity).
+- [RSA and Byte Utilities](docs/modules/rsa-and-byte-utils.md) - RSA-PSS signing, RSA-OAEP encryption, key generation, and UTF-8 byte validation.
 - [Cache](docs/modules/cache.md) - Ultra-fast secure in-memory cache system (UFSIMC).
 - [Encryption](docs/modules/encryption.md) - High-level data protection services.
 - [Utilities](docs/modules/utils.md) - Encoding and general helpers.
@@ -82,6 +83,69 @@ const passwords = new pm({
 // 2. Use everywhere
 const hash = await passwords.hash("user-password-123");
 const isValid = await passwords.verify("user-password-123", hash);
+
+// 3. Detect if a string is already hashed (useful in upsert flows)
+const alreadyHashed = passwords.isHashed(hash); // true
+const notHashed = passwords.isHashed("plane-text"); // false
+```
+
+### RSA Asymmetric Cryptography
+
+```typescript
+import {
+  generateRSAKeyPair,
+  rsaSign,
+  rsaVerify,
+  rsaEncrypt,
+  rsaDecrypt,
+} from "xypriss-security";
+
+// Generate a 4096-bit key pair (do this once, persist securely)
+const { publicKey, privateKey } = await generateRSAKeyPair();
+
+// Sign a payload with your private key
+const signature = await rsaSign(privateKey, "critical-payload");
+
+// Verify on the receiver side
+const isValid = await rsaVerify(publicKey, "critical-payload", signature);
+console.log(isValid); // true
+
+// Encrypt small data (e.g., symmetric keys) with a public key
+const encrypted = await rsaEncrypt(publicKey, "short-secret");
+const decrypted = await rsaDecrypt(privateKey, encrypted);
+console.log(decrypted); // "short-secret"
+```
+
+### Hash Detection
+
+```typescript
+import { pm } from "xypriss-security";
+
+const passwords = new pm({ algorithm: "argon2id" });
+const hash = await passwords.hash("user-password");
+
+// Check before re-hashing
+if (!passwords.isHashed(rawInput)) {
+  const stored = await passwords.hash(rawInput);
+}
+```
+
+### Byte-Safe Length Validation
+
+JavaScript's `.length` counts characters, not bytes. For multi-byte Unicode, this distinction is critical in cryptographic contexts.
+
+```typescript
+import { getByteLength, isValidByteLength } from "xypriss-security";
+
+// "caf\u00e9" has 4 characters but 5 bytes in UTF-8
+console.log("cafe\u0301".length); // 5 (chars)
+console.log(getByteLength("cafe\u0301")); // 6 (bytes)
+
+// Validate AES-256 key material (must be exactly 32 bytes)
+const keyCandidate = "exactly-32-bytes-long-passphrase";
+if (!isValidByteLength(keyCandidate, 32)) {
+  throw new Error("Invalid key length.");
+}
 ```
 
 ### Ultra-Fast Secure Caching (UFSIMC)

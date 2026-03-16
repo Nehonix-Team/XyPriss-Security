@@ -210,4 +210,17 @@ export const Bridge = {
   deriveSharedSecretX25519: (priv: string, pub: string) =>
     Bridge._call("derive-shared-secret-x25519", priv, pub),
   sampleLWEError: () => Number(Bridge._call("sample-lwe-error")),
+  getByteLength: (str: string) => Number(Bridge._call("get-byte-length", str)),
+  isValidByteLength: (str: string, length: number) =>
+    Bridge._call("is-valid-byte-length", str, length) === "1",
+
+  generateRSAKeyJSON: () => JSON.parse(Bridge._call("generate-rsa-key-json")),
+  rsaSign: (privateKey: string, data: string) =>
+    Bridge._call("rsa-sign", privateKey, data),
+  rsaVerify: (publicKey: string, data: string, signature: string) =>
+    Bridge._call("rsa-verify", publicKey, data, signature) === "1",
+  rsaEncrypt: (publicKey: string, data: string) =>
+    Bridge._call("rsa-encrypt", publicKey, data),
+  rsaDecrypt: (privateKey: string, encryptedHex: string) =>
+    Bridge._call("rsa-decrypt", privateKey, encryptedHex),
 };

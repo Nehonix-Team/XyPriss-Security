@@ -17,6 +17,7 @@ package main
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strconv"
@@ -121,6 +122,7 @@ func main() {
 			fmt.Print("0")
 		}
 
+	case "generate-password":
 		if len(args) < 2 {
 			errorExit("missing arguments for generate-password")
 		}
@@ -379,6 +381,89 @@ func main() {
 	case "sample-lwe-error":
 		val, _ := lwe.SampleCBD(2)
 		fmt.Print(val)
+
+	case "get-byte-length":
+		if len(args) < 1 {
+			errorExit("missing string for get-byte-length")
+		}
+		fmt.Print(len([]byte(args[0])))
+	case "is-valid-byte-length":
+		if len(args) < 2 {
+			errorExit("missing arguments for is-valid-byte-length")
+		}
+		expectedLen, _ := strconv.Atoi(args[1])
+		if len([]byte(args[0])) == expectedLen {
+			fmt.Print("1")
+		} else {
+			fmt.Print("0")
+		}
+
+	case "generate-rsa-key-json":
+		kp, err := crypto.GenerateRSAKeyJSON()
+		if err != nil {
+			errorExit(err.Error())
+		}
+		out, _ := json.Marshal(kp)
+		fmt.Print(string(out))
+
+	case "rsa-sign":
+		if len(args) < 2 {
+			errorExit("missing arguments for rsa-sign")
+		}
+		priv, err := crypto.ParseRSAPrivateKey([]byte(args[0]))
+		if err != nil {
+			errorExit(err.Error())
+		}
+		sig, err := crypto.RSASign(priv, []byte(args[1]))
+		if err != nil {
+			errorExit(err.Error())
+		}
+		fmt.Print(hex.EncodeToString(sig))
+
+	case "rsa-verify":
+		if len(args) < 3 {
+			errorExit("missing arguments for rsa-verify")
+		}
+		pub, err := crypto.ParseRSAPublicKey([]byte(args[0]))
+		if err != nil {
+			errorExit(err.Error())
+		}
+		sig, _ := hex.DecodeString(args[2])
+		err = crypto.RSAVerify(pub, []byte(args[1]), sig)
+		if err != nil {
+			fmt.Print("0")
+		} else {
+			fmt.Print("1")
+		}
+
+	case "rsa-encrypt":
+		if len(args) < 2 {
+			errorExit("missing arguments for rsa-encrypt")
+		}
+		pub, err := crypto.ParseRSAPublicKey([]byte(args[0]))
+		if err != nil {
+			errorExit(err.Error())
+		}
+		enc, err := crypto.RSAEncrypt(pub, []byte(args[1]))
+		if err != nil {
+			errorExit(err.Error())
+		}
+		fmt.Print(hex.EncodeToString(enc))
+
+	case "rsa-decrypt":
+		if len(args) < 2 {
+			errorExit("missing arguments for rsa-decrypt")
+		}
+		priv, err := crypto.ParseRSAPrivateKey([]byte(args[0]))
+		if err != nil {
+			errorExit(err.Error())
+		}
+		data, _ := hex.DecodeString(args[1])
+		dec, err := crypto.RSADecrypt(priv, data)
+		if err != nil {
+			errorExit(err.Error())
+		}
+		fmt.Print(string(dec))
 
 	default:
 		errorExit("unknown command: " + cmd)
