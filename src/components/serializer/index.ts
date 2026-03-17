@@ -3,6 +3,7 @@
  */
 
 import { SafeSerializer } from "./safe-serializer";
+import { SafeSerializationOptions } from "./types";
 
 // Ultra-fast serialization for performance-critical paths
 export const fastStringify = (obj: any): string =>
@@ -13,8 +14,13 @@ export const safeStringify = (obj: any): string =>
   SafeSerializer.stringify(obj, { fastMode: false });
 
 // XyPriss-safe serialization for req/res objects
-export const XyPriStringify = (obj: any): string =>
-  SafeSerializer.XyPriStringify(obj, { fastMode: false });
+export const XyPriStringify = (
+  obj: any,
+  opt: Partial<SafeSerializationOptions> = {
+    fastMode: false,
+    reportCircularPath: true,
+  },
+): string => SafeSerializer.XyPriStringify(obj, opt);
 export { XyPriStringify as XStringify };
 // Cache key generation
 export const generateSafeCacheKey = (args: any[], prefix?: string): string =>

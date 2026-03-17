@@ -63,10 +63,3 @@ export const encrypt = (data: string, key: string, algo: string = "aes") =>
  */
 export const decrypt = (encrypted: string, key: string, algo: string = "aes") =>
   Bridge.decrypt(encrypted, key, algo);
-
-export const Utils = {
-  hash,
-  getRandomBytes,
-  encrypt,
-  decrypt,
-};

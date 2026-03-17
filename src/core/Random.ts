@@ -13,7 +13,7 @@ import { Keys } from "./keys";
  *
  * Cryptographically secure random number and token generation.
  */
-export class Random extends Keys {
+export class Random {
   /**
    * Generates a readable secure random token with specified constraints.
    *

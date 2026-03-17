@@ -20,9 +20,13 @@ export * from "./bridge";
 export { XyPrissSecurity as XSec } from "./XyPrissSecurity"; // Alias for XyPrissSecurity
 export { PasswordManager as pm } from "./PasswordManager"; // Alias for PasswordManager
 
+import { mergeStatic } from "../utils/mergeStatic";
 import { Hash } from "./Hash";
+import { Keys } from "./keys";
 import { Random } from "./Random";
 import { XyPrissSecurity } from "./XyPrissSecurity";
+
+type cryptoKeysType = typeof Random & typeof Keys;
 
 /**
  * ### Cipher Class (Compatibility)
@@ -36,7 +40,7 @@ export class Cipher {
   /** Cryptographically secure random number and token generation. */
   public static readonly random = Random;
   /** Alias for random module. */
-  public static readonly crypto = Random;
+  public static readonly crypto: cryptoKeysType = mergeStatic(Random, Keys);
   /** Framework-level security management and configuration. */
   public static readonly XSec = XyPrissSecurity;
 }
