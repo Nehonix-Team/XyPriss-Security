@@ -28,6 +28,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -516,6 +517,173 @@ func ParseRSAPrivateKey(pemBytes []byte) (*rsa.PrivateKey, error) {
 		return nil, errors.New("failed to decode PEM block")
 	}
 	return x509.ParsePKCS1PrivateKey(block.Bytes)
+}
+
+// ─── Chunked File Encryption (Large Files) ──────────────────────────────────
+
+const (
+	FileMagic     = "XYPS"
+	FileVersion   = 1
+	DefaultChunkSize = 1024 * 1024 // 1MB
+)
+
+// EncryptFile encrypts a file using chunked AEAD.
+func EncryptFile(inputPath, outputPath string, key []byte, algo string) error {
+	inFile, err := os.Open(inputPath)
+	if err != nil {
+		return fmt.Errorf("open input: %w", err)
+	}
+	defer inFile.Close()
+
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("create output: %w", err)
+	}
+	defer outFile.Close()
+
+	// 1. Write Header
+	// Magic (4) + Version (1) + Algo (1) + Reserved (2)
+	header := make([]byte, 8)
+	copy(header[0:4], FileMagic)
+	header[4] = FileVersion
+	if algo == "chacha20" {
+		header[5] = 2
+	} else {
+		header[5] = 1 // AES-GCM
+	}
+	if _, err := outFile.Write(header); err != nil {
+		return fmt.Errorf("write header: %w", err)
+	}
+
+	// 2. Setup Cipher
+	var aead cipher.AEAD
+	if algo == "chacha20" {
+		aead, err = chacha20poly1305.New(key)
+	} else {
+		block, _ := aes.NewCipher(key)
+		aead, err = cipher.NewGCM(block)
+	}
+	if err != nil {
+		return fmt.Errorf("cipher init: %w", err)
+	}
+
+	nonceSize := aead.NonceSize()
+	buffer := make([]byte, DefaultChunkSize)
+	nonce := make([]byte, nonceSize)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return fmt.Errorf("initial nonce: %w", err)
+	}
+
+	// 3. Process Chunks
+	for {
+		n, err := inFile.Read(buffer)
+		if n > 0 {
+			// Encrypt chunk
+			// Use a simple nonce increment or a fresh random nonce per chunk?
+			// For simplicity and safety with random nonces, we'll prefix each chunk with its nonce.
+			// Better: Random nonce per chunk is safer for GCM if we encrypt many chunks.
+			chunkNonce := make([]byte, nonceSize)
+			io.ReadFull(rand.Reader, chunkNonce)
+
+			sealed := aead.Seal(nil, chunkNonce, buffer[:n], nil)
+
+			// Write [NonceSize (1) + Nonce + DataLen (4) + EncryptedData]
+			// To keep it simple, we'll just write [Nonce + EncryptedData]
+			// AEAD.Seal appends the tag.
+			if _, err := outFile.Write(chunkNonce); err != nil {
+				return err
+			}
+			if _, err := outFile.Write(sealed); err != nil {
+				return err
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// DecryptFile decrypts a file encrypted with EncryptFile.
+func DecryptFile(inputPath, outputPath string, key []byte) error {
+	inFile, err := os.Open(inputPath)
+	if err != nil {
+		return fmt.Errorf("open input: %w", err)
+	}
+	defer inFile.Close()
+
+	// 1. Read and Validate Header
+	header := make([]byte, 8)
+	if _, err := io.ReadFull(inFile, header); err != nil {
+		return fmt.Errorf("read header: %w", err)
+	}
+	if string(header[0:4]) != FileMagic {
+		return errors.New("invalid file magic")
+	}
+	algoCode := header[5]
+	algo := "aes"
+	if algoCode == 2 {
+		algo = "chacha20"
+	}
+
+	// 2. Setup Cipher
+	var aead cipher.AEAD
+	if algo == "chacha20" {
+		aead, err = chacha20poly1305.New(key)
+	} else {
+		block, _ := aes.NewCipher(key)
+		aead, err = cipher.NewGCM(block)
+	}
+	if err != nil {
+		return fmt.Errorf("cipher init: %w", err)
+	}
+
+	outFile, err := os.Create(outputPath)
+	if err != nil {
+		return fmt.Errorf("create output: %w", err)
+	}
+	defer outFile.Close()
+
+	nonceSize := aead.NonceSize()
+	tagSize := aead.Overhead()
+	// Each chunk is [Nonce (nonceSize) + Ciphertext (variable up to DefaultChunkSize) + Tag (tagSize)]
+	// Wait, if I don't store the chunk size, I need a fixed chunk size or a length prefix.
+	// Let's use a fixed chunk size for all but the last chunk.
+	
+	// Re-reading logic: read exactly nonceSize + DefaultChunkSize + tagSize
+	chunkTotal := nonceSize + DefaultChunkSize + tagSize
+	buf := make([]byte, chunkTotal)
+
+	for {
+		n, err := io.ReadFull(inFile, buf)
+		if n > 0 {
+			if n < nonceSize+tagSize {
+				return errors.New("truncated chunk")
+			}
+			chunkNonce := buf[:nonceSize]
+			ciphertext := buf[nonceSize:n]
+			
+			plaintext, err := aead.Open(nil, chunkNonce, ciphertext, nil)
+			if err != nil {
+				return fmt.Errorf("decrypt chunk: %w", err)
+			}
+			if _, err := outFile.Write(plaintext); err != nil {
+				return err
+			}
+		}
+		if err == io.EOF || err == io.ErrUnexpectedEOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // ensure sha512 is used (for future hash helpers in this file)

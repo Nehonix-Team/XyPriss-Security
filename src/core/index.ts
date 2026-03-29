@@ -26,6 +26,8 @@ import { Keys } from "./keys";
 import { Random } from "./Random";
 import { XyPrissSecurity } from "./XyPrissSecurity";
 
+import { EncryptionService } from "../components/encryption/EncryptionService";
+
 type cryptoKeysType = typeof Random & typeof Keys;
 
 /**

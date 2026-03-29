@@ -274,365 +274,383 @@ export class SafeSerializer {
     const stack: Task[] = [];
 
     const process = (val: unknown, p: string, d: number): void => {
-      // --- Primitives ---
-      if (val === undefined) {
-        chunks.push("null");
-        return;
-      }
-      if (val === null) {
-        chunks.push("null");
-        return;
-      }
+      let currentVal = val;
+      let currentPath = p;
+      let currentDepth = d;
 
-      const t = typeof val;
-
-      if (t === "boolean" || t === "number") {
-        // Guard against non-finite numbers (JSON doesn't support them)
-        if (t === "number" && !isFinite(val as number)) {
+      while (true) {
+        // --- Primitives ---
+        if (currentVal === undefined) {
           chunks.push("null");
-        } else {
-          chunks.push(JSON.stringify(val));
-        }
-        return;
-      }
-
-      if (t === "bigint") {
-        chunks.push(JSON.stringify(val.toString()));
-        return;
-      }
-
-      if (t === "symbol") {
-        chunks.push(`"[Symbol:${(val as symbol).toString()}]"`);
-        return;
-      }
-
-      if (t === "function") {
-        const fn = val as Function;
-        if (opts.pureRaw) {
-          // In pureRaw, we try to see everything. Functions are objects too!
-          // We mark it as function but allow traversal of its properties
-          const fnObj: any = {
-            _type: `[Function:${fn.name || "anonymous"}]`,
-            source: fn.toString(),
-          };
-          // Copy own properties
-          for (const k of Object.getOwnPropertyNames(fn)) {
-            try {
-              fnObj[k] = (fn as any)[k];
-            } catch {}
-          }
-          process(fnObj, p, d);
           return;
         }
-        const source = fn.toString();
-        const snippet =
-          source.length > 100
-            ? source.substring(0, 100).replace(/\n/g, " ") + "..."
-            : source;
-        chunks.push(
-          JSON.stringify(`[Function:${fn.name || "anonymous"} | ${snippet}]`),
-        );
-        return;
-      }
-
-      if (t === "string") {
-        const s = val as string;
-        const truncated =
-          s.length > opts.truncateStrings
-            ? this.safeTruncate(s, opts.truncateStrings) + "...[truncated]"
-            : s;
-        chunks.push(JSON.stringify(truncated));
-        return;
-      }
-
-      // --- Objects ---
-      const obj = val as object;
-
-      // Depth guard
-      if (d > opts.maxDepth) {
-        chunks.push(`"[Max Depth: ${d}]"`);
-        return;
-      }
-
-      // Cycle detection
-      if (seen.has(obj)) {
-        const circularPath = seen.get(obj)!;
-        if (opts.reportCircularPath) {
-          chunks.push(`"[Circular → ${circularPath}]"`);
-        } else {
-          chunks.push('"[Circular Reference]"');
-        }
-        return;
-      }
-
-      // --- Special value types (no need to mark as seen) ---
-
-      if (val instanceof Date) {
-        chunks.push(JSON.stringify(val.toISOString()));
-        return;
-      }
-
-      if (val instanceof RegExp) {
-        chunks.push(JSON.stringify(val.toString()));
-        return;
-      }
-
-      if (val instanceof Error) {
-        seen.set(obj, p);
-        const errObj = {
-          _type: "[Error]",
-          name: (val as Error).name,
-          message: (val as Error).message,
-          stack: (val as Error).stack ? "[Stack Trace Redacted]" : undefined,
-        };
-        process(errObj, p, d);
-        return;
-      }
-
-      if (typeof Buffer !== "undefined" && Buffer.isBuffer(val)) {
-        if (opts.pureRaw) {
-          // Convert buffer to real array for pureRaw inspection
-          process(Array.from(val as Buffer), p, d);
+        if (currentVal === null) {
+          chunks.push("null");
           return;
         }
-        const buf = val as Buffer;
-        const preview =
-          buf.length > 32
-            ? buf.slice(0, 32).toString("hex") + "..."
-            : buf.toString("hex");
-        chunks.push(
-          JSON.stringify(`[Buffer:${buf.length} bytes | 0x${preview}]`),
-        );
-        return;
-      }
 
-      if (val instanceof Uint8Array || val instanceof ArrayBuffer) {
-        const len =
-          val instanceof ArrayBuffer
-            ? val.byteLength
-            : (val as Uint8Array).byteLength;
-        chunks.push(`"[BinaryData:${len}bytes]"`);
-        return;
-      }
+        const t = typeof currentVal;
 
-      if (val instanceof Map) {
-        seen.set(obj, p);
-        const mapObj: Record<string, unknown> = { _type: "[Map]" };
-        let i = 0;
-        for (const [k, v] of val as Map<unknown, unknown>) {
-          if (i >= opts.maxObjectKeys) {
-            mapObj[`...[${(val as Map<unknown, unknown>).size - i} more]`] =
-              null;
-            break;
+        if (t === "boolean" || t === "number") {
+          // Guard against non-finite numbers (JSON doesn't support them)
+          if (t === "number" && !isFinite(currentVal as number)) {
+            chunks.push("null");
+          } else {
+            chunks.push(JSON.stringify(currentVal));
           }
-          mapObj[String(k)] = v;
-          i++;
+          return;
         }
-        process(mapObj, p, d);
-        return;
-      }
 
-      if (val instanceof Set) {
-        seen.set(obj, p);
-        const arr = Array.from(val as Set<unknown>);
-        process(arr, p, d);
-        return;
-      }
+        if (t === "bigint") {
+          chunks.push(JSON.stringify((currentVal as bigint).toString()));
+          return;
+        }
 
-      if (val instanceof Promise) {
-        chunks.push('"[Promise]"');
-        return;
-      }
+        if (t === "symbol") {
+          chunks.push(
+            JSON.stringify(`[Symbol:${(currentVal as symbol).toString()}]`),
+          );
+          return;
+        }
 
-      if (
-        val instanceof WeakMap ||
-        val instanceof WeakSet ||
-        val instanceof WeakRef
-      ) {
-        chunks.push(`"[${val.constructor.name}]"`);
-        return;
-      }
-
-      // --- XyPriss / Node.js special objects ---
-
-      const ctorName: string | undefined = (obj as any).constructor?.name;
-
-      if (BLOCKED_CONSTRUCTORS.has(ctorName ?? "")) {
-        if (opts.pureRaw) {
-          // Bypass block and treat as plain object
-          // but we still need to set seen to avoid immediate cycles
-          seen.set(obj, p);
-          // Fall through to plain object traversal below
-        } else {
-          // Extract useful metadata from common blocked objects
-          const meta: any = { _type: `[Blocked:${ctorName}]` };
-          try {
-            if (ctorName?.includes("Socket")) {
-              meta.remoteAddress = (val as any).remoteAddress;
-              meta.remotePort = (val as any).remotePort;
-              meta.localPort = (val as any).localPort;
-            } else if (ctorName === "Server") {
-              meta.listening = (val as any).listening;
+        if (t === "function") {
+          const fn = currentVal as Function;
+          if (opts.pureRaw) {
+            // In pureRaw, we try to see everything. Functions are objects too!
+            // We mark it as function but allow traversal of its properties
+            const fnObj: any = {
+              _type: `[Function:${fn.name || "anonymous"}]`,
+              source: fn.toString(),
+            };
+            // Copy own properties
+            for (const k of Object.getOwnPropertyNames(fn)) {
+              try {
+                fnObj[k] = (fn as any)[k];
+              } catch {}
             }
-          } catch {}
-
-          process(meta, p, d);
+            currentVal = fnObj;
+            continue;
+          }
+          const source = fn.toString();
+          const snippet =
+            source.length > 100
+              ? source.substring(0, 100).replace(/\n/g, " ") + "..."
+              : source;
+          chunks.push(
+            JSON.stringify(`[Function:${fn.name || "anonymous"} | ${snippet}]`),
+          );
           return;
         }
-      }
 
-      if (ctorName === "IncomingMessage" || ctorName === "Request") {
-        seen.set(obj, p);
-        process(
-          {
+        if (t === "string") {
+          const s = currentVal as string;
+          const truncated =
+            s.length > opts.truncateStrings
+              ? SafeSerializer.safeTruncate(s, opts.truncateStrings) +
+                "...[truncated]"
+              : s;
+          chunks.push(JSON.stringify(truncated));
+          return;
+        }
+
+        // --- Objects ---
+        const obj = currentVal as object;
+
+        // Depth guard
+        if (currentDepth > opts.maxDepth) {
+          chunks.push(`"[Max Depth: ${currentDepth}]"`);
+          return;
+        }
+
+        // Cycle detection
+        if (seen.has(obj)) {
+          const circularPath = seen.get(obj)!;
+          if (opts.reportCircularPath) {
+            chunks.push(`"[Circular → ${circularPath}]"`);
+          } else {
+            chunks.push('"[Circular Reference]"');
+          }
+          return;
+        }
+
+        // --- Special value types (no need to mark as seen) ---
+
+        if (currentVal instanceof Date) {
+          chunks.push(JSON.stringify(currentVal.toISOString()));
+          return;
+        }
+
+        if (currentVal instanceof RegExp) {
+          chunks.push(JSON.stringify(currentVal.toString()));
+          return;
+        }
+
+        if (currentVal instanceof Error) {
+          seen.set(obj, currentPath);
+          currentVal = {
+            _type: "[Error]",
+            name: (currentVal as Error).name,
+            message: (currentVal as Error).message,
+            stack: (currentVal as Error).stack
+              ? "[Stack Trace Redacted]"
+              : undefined,
+          };
+          continue;
+        }
+
+        if (typeof Buffer !== "undefined" && Buffer.isBuffer(currentVal)) {
+          if (opts.pureRaw) {
+            // Convert buffer to real array for pureRaw inspection
+            currentVal = Array.from(currentVal as Buffer);
+            continue;
+          }
+          const buf = currentVal as Buffer;
+          const preview =
+            buf.length > 32
+              ? buf.slice(0, 32).toString("hex") + "..."
+              : buf.toString("hex");
+          chunks.push(
+            JSON.stringify(`[Buffer:${buf.length} bytes | 0x${preview}]`),
+          );
+          return;
+        }
+
+        if (
+          currentVal instanceof Uint8Array ||
+          currentVal instanceof ArrayBuffer
+        ) {
+          const len =
+            currentVal instanceof ArrayBuffer
+              ? currentVal.byteLength
+              : (currentVal as Uint8Array).byteLength;
+          chunks.push(`"[BinaryData:${len}bytes]"`);
+          return;
+        }
+
+        if (currentVal instanceof Map) {
+          seen.set(obj, currentPath);
+          const mapObj: Record<string, unknown> = { _type: "[Map]" };
+          let i = 0;
+          for (const [k, v] of currentVal as Map<unknown, unknown>) {
+            if (i >= opts.maxObjectKeys) {
+              mapObj[
+                `...[${(currentVal as Map<unknown, unknown>).size - i} more]`
+              ] = null;
+              break;
+            }
+            mapObj[String(k)] = v;
+            i++;
+          }
+          currentVal = mapObj;
+          continue;
+        }
+
+        if (currentVal instanceof Set) {
+          seen.set(obj, currentPath);
+          currentVal = Array.from(currentVal as Set<unknown>);
+          continue;
+        }
+
+        if (currentVal instanceof Promise) {
+          chunks.push('"[Promise]"');
+          return;
+        }
+
+        if (
+          currentVal instanceof WeakMap ||
+          currentVal instanceof WeakSet ||
+          currentVal instanceof WeakRef
+        ) {
+          chunks.push(`"[${currentVal.constructor.name}]"`);
+          return;
+        }
+
+        // --- XyPriss / Node.js special objects ---
+
+        const ctorName: string | undefined = (obj as any).constructor?.name;
+
+        if (BLOCKED_CONSTRUCTORS.has(ctorName ?? "")) {
+          if (opts.pureRaw) {
+            // Bypass block and treat as plain object
+            // but we still need to set seen to avoid immediate cycles
+            seen.set(obj, currentPath);
+            // Fall through to plain object traversal below
+          } else {
+            // Extract useful metadata from common blocked objects
+            const meta: any = { _type: `[Blocked:${ctorName}]` };
+            try {
+              if (ctorName?.includes("Socket")) {
+                meta.remoteAddress = (currentVal as any).remoteAddress;
+                meta.remotePort = (currentVal as any).remotePort;
+                meta.localPort = (currentVal as any).localPort;
+              } else if (ctorName === "Server") {
+                meta.listening = (currentVal as any).listening;
+              }
+            } catch {}
+
+            currentVal = meta;
+            continue;
+          }
+        }
+
+        if (
+          (ctorName === "IncomingMessage" || ctorName === "Request") &&
+          !(currentVal as any)._type
+        ) {
+          seen.set(obj, currentPath);
+          currentVal = {
             _type: "[XyPriss Request]",
-            method: (val as any).method,
-            url: (val as any).url,
-            headers: this.sanitizeHeaders((val as any).headers),
-            query: (val as any).query,
-            params: (val as any).params,
-            body: (val as any).body ? "[Request Body]" : undefined,
-            ip: (val as any).ip,
-          },
-          p,
-          d,
-        );
-        return;
-      }
+            method: (currentVal as any).method,
+            url: (currentVal as any).url,
+            headers: SafeSerializer.sanitizeHeaders(
+              (currentVal as any).headers,
+            ),
+            query: (currentVal as any).query,
+            params: (currentVal as any).params,
+            body: (currentVal as any).body ? "[Request Body]" : undefined,
+            ip: (currentVal as any).ip,
+          };
+          continue;
+        }
 
-      if (ctorName === "ServerResponse" || ctorName === "Response") {
-        seen.set(obj, p);
-        process(
-          {
+        if (
+          (ctorName === "ServerResponse" || ctorName === "Response") &&
+          !(currentVal as any)._type
+        ) {
+          seen.set(obj, currentPath);
+          currentVal = {
             _type: "[XyPriss Response]",
-            statusCode: (val as any).statusCode,
-            statusMessage: (val as any).statusMessage,
-            headersSent: (val as any).headersSent,
-          },
-          p,
-          d,
-        );
-        return;
-      }
+            statusCode: (currentVal as any).statusCode,
+            statusMessage: (currentVal as any).statusMessage,
+            headersSent: (currentVal as any).headersSent,
+          };
+          continue;
+        }
 
-      // Heuristic: looks like a duck-typed XyPriss request
-      if (
-        (val as any).method &&
-        (val as any).url &&
-        (val as any).headers &&
-        !Array.isArray(val)
-      ) {
-        seen.set(obj, p);
-        process(
-          {
+        // Heuristic: looks like a duck-typed XyPriss request (Axios config, etc)
+        if (
+          (currentVal as any).method &&
+          (currentVal as any).url &&
+          (currentVal as any).headers &&
+          !Array.isArray(currentVal) &&
+          !(currentVal as any)._type
+        ) {
+          seen.set(obj, currentPath);
+          currentVal = {
             _type: "[XyPriss Request-like]",
-            method: (val as any).method,
-            url: (val as any).url,
-            headers: this.sanitizeHeaders((val as any).headers),
-          },
-          p,
-          d,
-        );
-        return;
-      }
+            method: (currentVal as any).method,
+            url: (currentVal as any).url,
+            headers: SafeSerializer.sanitizeHeaders(
+              (currentVal as any).headers,
+            ),
+          };
+          continue;
+        }
 
-      // --- Arrays ---
+        // --- Arrays ---
 
-      if (Array.isArray(val)) {
-        seen.set(obj, p);
-        const arr = val as unknown[];
+        if (Array.isArray(currentVal)) {
+          seen.set(obj, currentPath);
+          const arr = currentVal as unknown[];
 
-        if (arr.length === 0) {
-          chunks.push("[]");
+          if (arr.length === 0) {
+            chunks.push("[]");
+            return;
+          }
+
+          const limit = Math.min(arr.length, opts.maxArrayItems);
+          const truncatedArray = limit < arr.length;
+
+          chunks.push("[");
+
+          // Push items onto the stack in reverse order so they execute in order
+          // We schedule a "close" task last (it runs after all items)
+          const closeIdx = chunks.length; // slot reserved below
+          chunks.push(""); // placeholder for closing bracket / truncation note
+
+          const itemTasks: Task[] = [];
+          for (let i = 0; i < limit; i++) {
+            const idx = i;
+            itemTasks.push(() => {
+              if (idx > 0) chunks.push(",");
+              process(arr[idx], `${currentPath}[${idx}]`, currentDepth + 1);
+            });
+          }
+          // The close task
+          const closeTask = () => {
+            if (truncatedArray) {
+              chunks.push(",");
+              chunks.push(`"...[${arr.length - limit} more items truncated]"`);
+            }
+            chunks[closeIdx] = ""; // clear placeholder
+            chunks.push("]");
+          };
+
+          // Push close task first, then items in REVERSE order so Task(0) is on top
+          stack.push(closeTask);
+          for (let i = itemTasks.length - 1; i >= 0; i--) {
+            stack.push(itemTasks[i]);
+          }
           return;
         }
 
-        const limit = Math.min(arr.length, opts.maxArrayItems);
-        const truncatedArray = limit < arr.length;
+        // --- Plain objects ---
 
-        chunks.push("[");
+        seen.set(obj, currentPath);
 
-        // Push items onto the stack in reverse order so they execute in order
-        // We schedule a "close" task last (it runs after all items)
-        const closeIdx = chunks.length; // slot reserved below
-        chunks.push(""); // placeholder for closing bracket / truncation note
+        const keys = opts.includeNonEnumerable
+          ? Object.getOwnPropertyNames(obj)
+          : Object.keys(obj);
 
-        const itemTasks: Task[] = [];
+        // Filter out deprecated Node internal properties to avoid warnings like DEP0066
+        const filteredKeys = keys.filter((k) => k !== "_headerNames");
+
+        if (filteredKeys.length === 0) {
+          chunks.push("{}");
+          return;
+        }
+
+        const limit = Math.min(filteredKeys.length, opts.maxObjectKeys);
+        const truncatedObj = limit < filteredKeys.length;
+
+        chunks.push("{");
+        const closeIdx = chunks.length;
+        chunks.push(""); // placeholder
+
+        const keyTasks: Task[] = [];
         for (let i = 0; i < limit; i++) {
+          const k = filteredKeys[i];
           const idx = i;
-          itemTasks.push(() => {
+          keyTasks.push(() => {
             if (idx > 0) chunks.push(",");
-            process(arr[idx], `${p}[${idx}]`, d + 1);
+            chunks.push(JSON.stringify(k));
+            chunks.push(":");
+            let v: unknown;
+            try {
+              v = (obj as any)[k];
+            } catch {
+              v = "[Property Access Error]";
+            }
+            process(v, `${currentPath}.${k}`, currentDepth + 1);
           });
         }
-        // The close task
+
         const closeTask = () => {
-          if (truncatedArray) {
+          if (truncatedObj) {
             chunks.push(",");
-            chunks.push(`"...[${arr.length - limit} more items truncated]"`);
+            chunks.push(
+              `"...[${keys.length - limit} more keys truncated]":null`,
+            );
           }
-          chunks[closeIdx] = ""; // clear placeholder
-          chunks.push("]");
+          chunks[closeIdx] = "";
+          chunks.push("}");
         };
 
-        // Push close task first, then items in REVERSE order so Task(0) is on top
         stack.push(closeTask);
-        for (let i = itemTasks.length - 1; i >= 0; i--) {
-          stack.push(itemTasks[i]);
+        for (let i = keyTasks.length - 1; i >= 0; i--) {
+          stack.push(keyTasks[i]);
         }
         return;
-      }
-
-      // --- Plain objects ---
-
-      seen.set(obj, p);
-
-      const keys = opts.includeNonEnumerable
-        ? Object.getOwnPropertyNames(obj)
-        : Object.keys(obj);
-
-      if (keys.length === 0) {
-        chunks.push("{}");
-        return;
-      }
-
-      const limit = Math.min(keys.length, opts.maxObjectKeys);
-      const truncatedObj = limit < keys.length;
-
-      chunks.push("{");
-      const closeIdx = chunks.length;
-      chunks.push(""); // placeholder
-
-      const keyTasks: Task[] = [];
-      for (let i = 0; i < limit; i++) {
-        const k = keys[i];
-        const idx = i;
-        keyTasks.push(() => {
-          if (idx > 0) chunks.push(",");
-          chunks.push(JSON.stringify(k));
-          chunks.push(":");
-          let v: unknown;
-          try {
-            v = (obj as any)[k];
-          } catch {
-            v = "[Property Access Error]";
-          }
-          process(v, `${p}.${k}`, d + 1);
-        });
-      }
-
-      const closeTask = () => {
-        if (truncatedObj) {
-          chunks.push(",");
-          chunks.push(`"...[${keys.length - limit} more keys truncated]":null`);
-        }
-        chunks[closeIdx] = "";
-        chunks.push("}");
-      };
-
-      stack.push(closeTask);
-      for (let i = keyTasks.length - 1; i >= 0; i--) {
-        stack.push(keyTasks[i]);
       }
     };
 

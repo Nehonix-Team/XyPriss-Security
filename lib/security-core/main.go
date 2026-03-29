@@ -465,6 +465,33 @@ func main() {
 		}
 		fmt.Print(string(dec))
 
+	case "encrypt-file":
+		if len(args) < 4 {
+			errorExit("missing arguments for encrypt-file")
+		}
+		inPath := args[0]
+		outPath := args[1]
+		key, _ := hex.DecodeString(args[2])
+		algo := args[3]
+		err := crypto.EncryptFile(inPath, outPath, key, algo)
+		if err != nil {
+			errorExit(err.Error())
+		}
+		fmt.Print("OK")
+
+	case "decrypt-file":
+		if len(args) < 3 {
+			errorExit("missing arguments for decrypt-file")
+		}
+		inPath := args[0]
+		outPath := args[1]
+		key, _ := hex.DecodeString(args[2])
+		err := crypto.DecryptFile(inPath, outPath, key)
+		if err != nil {
+			errorExit(err.Error())
+		}
+		fmt.Print("OK")
+
 	default:
 		errorExit("unknown command: " + cmd)
 	}

@@ -223,4 +223,19 @@ export const Bridge = {
     Bridge._call("rsa-encrypt", publicKey, data),
   rsaDecrypt: (privateKey: string, encryptedHex: string) =>
     Bridge._call("rsa-decrypt", privateKey, encryptedHex),
+
+  encryptFile: (
+    inPath: string,
+    outPath: string,
+    key: Uint8Array,
+    algo: string = "aes",
+  ) => {
+    const hexKey = Buffer.from(key).toString("hex");
+    return Bridge._call("encrypt-file", inPath, outPath, hexKey, algo);
+  },
+
+  decryptFile: (inPath: string, outPath: string, key: Uint8Array) => {
+    const hexKey = Buffer.from(key).toString("hex");
+    return Bridge._call("decrypt-file", inPath, outPath, hexKey);
+  },
 };

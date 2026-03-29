@@ -36,6 +36,7 @@
 
 import { Hash, Random, Keys } from "../../core";
 import { Bridge } from "../../core/bridge";
+import * as fs from "fs"; // Use import for consistency if possible, though EncryptionService uses require inside methods often
 
 /**
  * Encryption algorithm options

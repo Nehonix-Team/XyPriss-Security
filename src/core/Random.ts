@@ -110,6 +110,20 @@ export class Random {
   }
 
   /**
+   * Randomly picks an item from an array using cryptographically secure random numbers.
+   *
+   * @param arr - The array to pick from.
+   * @returns A random item from the array.
+   */
+  public static pick<T>(arr: T[]): T {
+    if (!arr || arr.length === 0) {
+      throw new Error("Cannot pick from an empty array");
+    }
+    const index = Bridge.getRandomInt(arr.length);
+    return arr[index];
+  }
+
+  /**
    * Alias for generateToken.
    */
   public static generateSecureToken(

@@ -59,8 +59,6 @@ export class Keys {
     return Password.hash(strInput, options);
   }
 
-
-
   /**
    * Generates a new RSA key pair in JSON format.
    * @returns A Promise resolving to an object containing publicKey and privateKey.
@@ -125,8 +123,102 @@ export class Keys {
   ): Promise<string> {
     return Bridge.rsaDecrypt(privateKey, encryptedHex);
   }
-}
 
+  /**
+   * Encrypt a large file using high-performance chunked encryption.
+   * Moved from EncryptionService for low-level core access.
+   */
+  public static async encryptFile(
+    inputPath: string,
+    outputPath: string,
+    key: string,
+    options: any = {}, // Using any for options to avoid importing from components if not needed
+  ): Promise<void> {
+    const fs = require("fs");
+    const {
+      algorithm = "aes-256-gcm",
+      keyDerivationIterations = 100000,
+      quantumSafe = false,
+    } = options;
+
+    const SALT_LENGTH = 32;
+    const salt = Random.getRandomBytes(SALT_LENGTH);
+
+    // Derive key using internal logic
+    const derivedKeyHex = await Bridge.pbkdf2(
+      key,
+      salt.toUint8Array(),
+      keyDerivationIterations,
+      32,
+      "sha256",
+    );
+    const derivedKey = Buffer.from(derivedKeyHex, "hex");
+
+    const algoTarget =
+      algorithm === "chacha20-poly1305" || quantumSafe ? "chacha20" : "aes";
+
+    const tempPath = `${outputPath}.tmp`;
+    const result = Bridge.encryptFile(
+      inputPath,
+      tempPath,
+      derivedKey,
+      algoTarget,
+    );
+    if (result !== "OK") throw new Error(result);
+
+    // Final file: Salt (32) + Encrypted Data
+    const saltBuffer = Buffer.from(salt.toUint8Array());
+    const finalOut = fs.createWriteStream(outputPath);
+    finalOut.write(saltBuffer);
+
+    const tempIn = fs.createReadStream(tempPath);
+    await new Promise<void>((resolve, reject) => {
+      tempIn.pipe(finalOut);
+      tempIn.on("end", resolve);
+      tempIn.on("error", reject);
+    });
+
+    fs.unlinkSync(tempPath);
+  }
+
+  /**
+   * Decrypt a large file.
+   * Moved from EncryptionService for low-level core access.
+   */
+  public static async decryptFile(
+    inputPath: string,
+    outputPath: string,
+    key: string,
+  ): Promise<void> {
+    const fs = require("fs");
+    const fd = fs.openSync(inputPath, "r");
+    const SALT_LENGTH = 32;
+
+    const salt = Buffer.alloc(SALT_LENGTH);
+    fs.readSync(fd, salt, 0, SALT_LENGTH, 0);
+    fs.closeSync(fd);
+
+    const derivedKeyHex = await Bridge.pbkdf2(key, salt, 100000, 32, "sha256");
+    const derivedKey = Buffer.from(derivedKeyHex, "hex");
+
+    const tempInPath = `${inputPath}.nosalt.tmp`;
+    const finalInStream = fs.createReadStream(inputPath, {
+      start: SALT_LENGTH,
+    });
+    const tempOutStream = fs.createWriteStream(tempInPath);
+
+    await new Promise<void>((resolve, reject) => {
+      finalInStream.pipe(tempOutStream);
+      finalInStream.on("end", resolve);
+      finalInStream.on("error", reject);
+    });
+
+    const result = Bridge.decryptFile(tempInPath, outputPath, derivedKey);
+    if (result !== "OK") throw new Error(result);
+
+    fs.unlinkSync(tempInPath);
+  }
+}
 
 // =================================== UTILES ==========================
 

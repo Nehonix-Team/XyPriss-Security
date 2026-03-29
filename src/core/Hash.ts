@@ -6,7 +6,7 @@ import { Bridge } from "./bridge";
 import { HashOptions, HMACAlgorithm } from "../types";
 import { Random } from "./Random";
 import { SecureBuffer } from "./SecureBuffer";
- 
+
 /**
  * ### Hash Class
  *
@@ -106,6 +106,17 @@ export class Hash {
     const res = Bridge.hmac(key, data, algo);
     if (res.startsWith("error:")) throw new Error(res);
     return res;
+  }
+
+  /**
+   * Compares two buffers in constant time to prevent timing attacks.
+   *
+   * @param a - First buffer to compare.
+   * @param b - Second buffer to compare.
+   * @returns True if buffers are equal, false otherwise.
+   */
+  public static timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
+    return Bridge.constantTimeCompare(a, b);
   }
 
   /**
