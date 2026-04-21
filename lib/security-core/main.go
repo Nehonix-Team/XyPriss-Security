@@ -19,6 +19,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -43,6 +44,25 @@ func main() {
 
 	cmd := os.Args[1]
 	args := os.Args[2:]
+
+	// Helper to resolve data (handles stdin via '-')
+	resolveData := func(idx int) []byte {
+		if idx >= len(args) {
+			return nil
+		}
+		val := args[idx]
+		if val == "-" {
+			data, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				errorExit("failed to read from stdin: " + err.Error())
+			}
+			return data
+		}
+		// Default: treat as hex string if it's a 'raw' data command, or plaintext?
+		// Most current commands use hex.DecodeString(args[idx])
+		d, _ := hex.DecodeString(val)
+		return d
+	}
 
 	switch cmd {
 	case "hash-password":
@@ -167,7 +187,7 @@ func main() {
 		if len(args) < 2 {
 			errorExit("missing arguments for get-hash")
 		}
-		data, _ := hex.DecodeString(args[0])
+		data := resolveData(0)
 		algo := strings.ToLower(args[1])
 		var h []byte
 		var err error
@@ -190,7 +210,7 @@ func main() {
 		if len(args) < 1 {
 			errorExit("missing data for get-sha256")
 		}
-		data, _ := hex.DecodeString(args[0])
+		data := resolveData(0)
 		fmt.Print(hex.EncodeToString(crypto.SHA256(data)))
 
 	case "get-hmac":
@@ -198,7 +218,7 @@ func main() {
 			errorExit("missing arguments for get-hmac")
 		}
 		key, _ := hex.DecodeString(args[0])
-		data, _ := hex.DecodeString(args[1])
+		data := resolveData(1)
 		algo := strings.ToLower(args[2])
 		var h []byte
 		var err error
@@ -219,7 +239,7 @@ func main() {
 		if len(args) < 4 {
 			errorExit("missing arguments for hkdf")
 		}
-		ikm, _ := hex.DecodeString(args[0])
+		ikm := resolveData(0)
 		salt, _ := hex.DecodeString(args[1])
 		info, _ := hex.DecodeString(args[2])
 		outLen, _ := strconv.Atoi(args[3])
@@ -233,7 +253,12 @@ func main() {
 		if len(args) < 5 {
 			errorExit("missing arguments for pbkdf2")
 		}
-		pass := []byte(args[0])
+		var pass []byte
+		if args[0] == "-" {
+			pass, _ = io.ReadAll(os.Stdin)
+		} else {
+			pass = []byte(args[0])
+		}
 		salt, _ := hex.DecodeString(args[1])
 		iterations, _ := strconv.Atoi(args[2])
 		keyLen, _ := strconv.Atoi(args[3])
@@ -262,7 +287,7 @@ func main() {
 		if len(args) < 3 {
 			errorExit("missing arguments for encrypt")
 		}
-		plaintext := []byte(args[0])
+		plaintext := []byte(args[0]) // encrypt usually used for passwords/short strings in bridge.ts
 		key, _ := hex.DecodeString(args[1])
 		algo := args[2]
 		var pkg *crypto.EncryptedPackage
@@ -306,7 +331,7 @@ func main() {
 		if len(args) < 3 {
 			errorExit("missing arguments for encrypt-raw")
 		}
-		data, _ := hex.DecodeString(args[0])
+		data := resolveData(0)
 		key, _ := hex.DecodeString(args[1])
 		algo := args[2]
 		var pkg *crypto.EncryptedPackage
@@ -387,6 +412,7 @@ func main() {
 			errorExit("missing string for get-byte-length")
 		}
 		fmt.Print(len([]byte(args[0])))
+
 	case "is-valid-byte-length":
 		if len(args) < 2 {
 			errorExit("missing arguments for is-valid-byte-length")
@@ -491,6 +517,19 @@ func main() {
 			errorExit(err.Error())
 		}
 		fmt.Print("OK")
+
+	case "ed25519-verify":
+		if len(args) < 3 {
+			errorExit("missing arguments for ed25519-verify")
+		}
+		pubKey, _ := hex.DecodeString(args[0])
+		data := resolveData(1)
+		sig, _ := base64.StdEncoding.DecodeString(args[2])
+		if crypto.VerifyEd25519(pubKey, data, sig) {
+			fmt.Print("1")
+		} else {
+			fmt.Print("0")
+		}
 
 	default:
 		errorExit("unknown command: " + cmd)

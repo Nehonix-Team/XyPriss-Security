@@ -6,8 +6,9 @@ XyPriss Security is an enterprise-grade cryptographic framework for TypeScript /
 
 - **Performance**: Optimized execution using lightweight process spawning, bypassing the overhead of standard JavaScript cryptographic implementations without the complexity of CGO.
 - **Universal Portability**: Zero native compilation required. Statically linked pure Go binaries run flawlessly on Linux, Windows, and macOS (amd64/arm64) via a unified interface.
-- **Modern Standards**: Native support for AES-256-GCM, Argon2id, PBKDF2, HKDF, RSA-OAEP, RSA-PSS, and Post-Quantum algorithms (Kyber-768).
+- **Modern Standards**: Native support for Ed25519, AES-256-GCM, Argon2id, PBKDF2, HKDF, RSA-OAEP, RSA-PSS, and Post-Quantum algorithms (Kyber-768).
 - **Security by Default**: Automatic memory sanitization and secure key derivation patterns.
+- **High-Payload Optimization**: Transparent `stdin` piping for large buffers to bypass OS-level `E2BIG` limitations.
 - **Zero-Config Installation**: Automatically downloads the exact pre-built binary for your platform during installation (no local Go toolchain required).
 
 ## Documentation
@@ -17,6 +18,7 @@ The framework documentation is modularized for clarity and depth.
 ### Modules
 
 - [Core](docs/modules/core.md) - Foundational primitives (Hash, Random, Password, SecureBuffer, XyPrissSecurity).
+- [Ed25519](docs/modules/ed25519.md) - High-performance EdDSA signature verification.
 - [RSA and Byte Utilities](docs/modules/rsa-and-byte-utils.md) - RSA-PSS signing, RSA-OAEP encryption, key generation, and UTF-8 byte validation.
 - [Cache](docs/modules/cache.md) - Ultra-fast secure in-memory cache system (UFSIMC).
 - [Encryption](docs/modules/encryption.md) - High-level data protection services.
@@ -114,6 +116,16 @@ console.log(isValid); // true
 const encrypted = await rsaEncrypt(publicKey, "short-secret");
 const decrypted = await rsaDecrypt(privateKey, encrypted);
 console.log(decrypted); // "short-secret"
+```
+
+### Ed25519 Signatures
+
+Optimized verification for high-speed integrity checks.
+
+```typescript
+import { ed25519Verify } from "xypriss-security";
+
+const valid = ed25519Verify(authorPubKeyHex, dataContent, signatureBase64);
 ```
 
 ### Hash Detection

@@ -1,23 +1,23 @@
 {
   "name": "xypriss-security",
-  "version": "2.1.11",
+  "version": "2.1.16",
   "description": "Advanced High-Performance Security Framework. Military-grade encryption, post-quantum resilience, and fortified data structures.",
   "author": {
     "name": "NEHONIX",
     "url": "https://nehonix.com"
   },
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "files": [
     "dist",
     "scripts"
   ],
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
   "scripts": {
-    "build": "xfpm run build:ts", 
+    "build": "xfpm run build:ts",
+    "build:all": "npm run build \u0026\u0026 npm run build:release",
     "build:core": "node scripts/build-core.js",
-    "build:ts": "rimraf dist && tsc && mkdir -p dist/src/mods && cp src/mods/*.txt dist/src/mods/",
     "build:release": "bash scripts/release-build.sh",
-    "build:all": "npm run build && npm run build:release",
+    "build:ts": "rimraf dist \u0026\u0026 tsc \u0026\u0026 mkdir -p dist/src/mods \u0026\u0026 cp src/mods/*.txt dist/src/mods/",
     "postinstall": "node scripts/build-core.js",
     "prepublishOnly": "npm run build",
     "test": "bun run lib/test_ultra_robust.ts"
@@ -33,6 +33,7 @@
     "@types/node": "^25.4.0",
     "bun": "^1.3.10",
     "rimraf": "^5.0.10",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "xypriss": "^9.4.7"
   }
 }

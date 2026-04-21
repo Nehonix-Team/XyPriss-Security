@@ -66,15 +66,27 @@ const libPath = getBinaryPath();
  */
 export const Bridge = {
   /**
-   * Internal helper to call the Go binary
+   * Internal helper to call the Go binary.
+   * Supports passing data via stdin by passing an object { __stdin: true, data: ... } as an argument.
    */
   _call: (command: string, ...args: any[]): string => {
-    const result = spawnSync(libPath, [
-      command,
-      ...args.map((a) => (a === null || a === undefined ? "" : String(a))),
-    ]);
+    let input: string | Buffer | undefined;
+    const finalArgs = args.map((a) => {
+      if (a && typeof a === "object" && a.__stdin) {
+        input = a.data;
+        return "-";
+      }
+      return a === null || a === undefined ? "" : String(a);
+    });
+
+    const result = spawnSync(libPath, [command, ...finalArgs], { input });
 
     if (result.error) {
+      if ((result.error as any).code === "E2BIG") {
+        throw new Error(
+          `Failed to execute security core: E2BIG (Argument list too long). Data must be passed via stdin.`,
+        );
+      }
       throw new Error(
         `Failed to execute security core: ${result.error.message}`,
       );
@@ -119,19 +131,33 @@ export const Bridge = {
   generateOTP: (digits: number) => Bridge._call("generate-otp", digits),
 
   hash: (data: string | Uint8Array, algo: string = "sha256") => {
-    const hexData =
-      typeof data === "string"
+    const isLarge =
+      (typeof data === "string" ? data.length : data.length) > 32768;
+    const arg = isLarge
+      ? {
+          __stdin: true,
+          data: typeof data === "string" ? data : Buffer.from(data),
+        }
+      : typeof data === "string"
         ? Buffer.from(data).toString("hex")
         : Buffer.from(data).toString("hex");
-    return Bridge._call("get-hash", hexData, algo);
+
+    return Bridge._call("get-hash", arg, algo);
   },
 
   sha256: (data: string | Uint8Array) => {
-    const hexData =
-      typeof data === "string"
+    const isLarge =
+      (typeof data === "string" ? data.length : data.length) > 32768;
+    const arg = isLarge
+      ? {
+          __stdin: true,
+          data: typeof data === "string" ? data : Buffer.from(data),
+        }
+      : typeof data === "string"
         ? Buffer.from(data).toString("hex")
         : Buffer.from(data).toString("hex");
-    return Bridge._call("get-sha256", hexData);
+
+    return Bridge._call("get-sha256", arg);
   },
 
   hmac: (
@@ -143,11 +169,19 @@ export const Bridge = {
       typeof key === "string"
         ? Buffer.from(key).toString("hex")
         : Buffer.from(key).toString("hex");
-    const hexData =
-      typeof data === "string"
+
+    const isLarge =
+      (typeof data === "string" ? data.length : data.length) > 32768;
+    const argData = isLarge
+      ? {
+          __stdin: true,
+          data: typeof data === "string" ? data : Buffer.from(data),
+        }
+      : typeof data === "string"
         ? Buffer.from(data).toString("hex")
         : Buffer.from(data).toString("hex");
-    return Bridge._call("get-hmac", hexKey, hexData, algo);
+
+    return Bridge._call("get-hmac", hexKey, argData, algo);
   },
 
   hkdf: (
@@ -156,10 +190,16 @@ export const Bridge = {
     info: string | Uint8Array,
     len: number,
   ) => {
-    const hexIkm =
-      typeof ikm === "string"
+    const isLarge = (typeof ikm === "string" ? ikm.length : ikm.length) > 32768;
+    const hexIkm = isLarge
+      ? {
+          __stdin: true,
+          data: typeof ikm === "string" ? ikm : Buffer.from(ikm),
+        }
+      : typeof ikm === "string"
         ? Buffer.from(ikm).toString("hex")
         : Buffer.from(ikm).toString("hex");
+
     const hexSalt =
       typeof salt === "string"
         ? Buffer.from(salt).toString("hex")
@@ -178,8 +218,10 @@ export const Bridge = {
     keyLen: number,
     algo: string = "sha256",
   ) => {
+    const isLarge = pass.length > 32768;
+    const argPass = isLarge ? { __stdin: true, data: pass } : pass;
     const hexSalt = Buffer.from(salt).toString("hex");
-    return Bridge._call("pbkdf2", pass, hexSalt, iterations, keyLen, algo);
+    return Bridge._call("pbkdf2", argPass, hexSalt, iterations, keyLen, algo);
   },
 
   constantTimeCompare: (a: Uint8Array, b: Uint8Array) => {
@@ -195,9 +237,12 @@ export const Bridge = {
     Bridge._call("decrypt", encrypted, key, algo),
 
   encryptRaw: (data: Uint8Array, key: Uint8Array, algo: string = "aes") => {
-    const hexData = Buffer.from(data).toString("hex");
+    const isLarge = data.length > 32768;
+    const argData = isLarge
+      ? { __stdin: true, data: Buffer.from(data) }
+      : Buffer.from(data).toString("hex");
     const hexKey = Buffer.from(key).toString("hex");
-    return Bridge._call("encrypt-raw", hexData, hexKey, algo);
+    return Bridge._call("encrypt-raw", argData, hexKey, algo);
   },
 
   decryptRaw: (encryptedHex: string, key: Uint8Array, algo: string = "aes") => {
@@ -237,5 +282,34 @@ export const Bridge = {
   decryptFile: (inPath: string, outPath: string, key: Uint8Array) => {
     const hexKey = Buffer.from(key).toString("hex");
     return Bridge._call("decrypt-file", inPath, outPath, hexKey);
+  },
+
+  ed25519Verify: (
+    publicKey: string | Uint8Array,
+    data: string | Uint8Array,
+    signature: string | Uint8Array,
+  ) => {
+    const hexPub =
+      typeof publicKey === "string"
+        ? publicKey
+        : Buffer.from(publicKey).toString("hex");
+
+    const isLarge =
+      (typeof data === "string" ? data.length : data.length) > 32768;
+    const argData = isLarge
+      ? {
+          __stdin: true,
+          data: typeof data === "string" ? data : Buffer.from(data),
+        }
+      : typeof data === "string"
+        ? Buffer.from(data).toString("hex")
+        : Buffer.from(data).toString("hex");
+
+    const b64Sig =
+      typeof signature === "string"
+        ? signature
+        : Buffer.from(signature).toString("base64");
+
+    return Bridge._call("ed25519-verify", hexPub, argData, b64Sig) === "1";
   },
 };
