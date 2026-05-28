@@ -9,6 +9,8 @@
  * @license Nehonix Open Source License (NOSL)
  ****************************************************************************/
 
+import { __strl__ } from "strulink";
+
 /**
  * Defines the security levels available for cryptographic operations.
  */
@@ -44,12 +46,10 @@ export type HMACAlgorithm = "sha256" | "sha512" | "SHA-256" | "SHA-512";
 /**
  * Base encoding types for data conversion.
  */
-export type BaseEncodingType =
-  | "hex"
-  | "base64"
-  | "base64url"
-  | "utf-8"
-  | "ascii";
+
+type ENC_TYPE = Parameters<typeof __strl__.encode>[1]
+
+export type BaseEncodingType = "hex" | "base64" | "base32"
 
 /**
  * Configuration options for hashing operations.

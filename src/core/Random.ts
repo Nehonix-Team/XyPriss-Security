@@ -7,6 +7,7 @@ import { SecureBuffer } from "./SecureBuffer";
 import { SecureTokenOptions } from "../types";
 import { stringToBuffer } from "../utils";
 import { Keys } from "./keys";
+import { C } from "../utils/constants";
 
 /**
  * ### Random Class
@@ -35,16 +36,16 @@ export class Random {
       options.includeSymbols !== false
     ) {
       if (options.includeLowercase !== false)
-        charset += "abcdefghijklmnopqrstuvwxyz";
+        charset += C.LOWERCASE;
       if (options.includeUppercase !== false)
-        charset += "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      if (options.includeNumbers !== false) charset += "0123456789";
-      if (options.includeSymbols) charset += "!@#$%^&*()_+-=[]{}|;:,.<>?";
+        charset += C.UPPERCASE;
+      if (options.includeNumbers !== false) charset += C.NUMBERS;
+      if (options.includeSymbols) charset += C.SYMBOLS;
     }
 
     // Similarity filter
     if (options.excludeSimilarCharacters) {
-      charset = charset.replace(/[il1Lo0O]/g, "");
+      charset = charset.replace(C.RSIMILAR_CHARS, "");
     }
 
     const token = Bridge.generatePassword(length, charset);

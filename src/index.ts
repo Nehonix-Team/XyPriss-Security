@@ -1,5 +1,5 @@
 /***************************************************************************
- * XyPriss Security - Advanced Hyper-Modular Security Framework
+ * XyPriss Security - Advanced High-Performance Security Framework
  *
  * @author NEHONIX (Nehonix-Team - https://github.com/Nehonix-Team)
  * @license Nehonix Open Source License (NOSL)

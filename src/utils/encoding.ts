@@ -182,7 +182,7 @@ export function base64ToBuffer(
         while (str.length % 4) {
             str += "=";
         }
-    }
+    } 
 
     if (typeof Buffer !== "undefined") {
         // Node.js environment
@@ -233,7 +233,7 @@ export function base64ToBuffer(
  * @returns Base58 string representation
  */
 export function bufferToBase58(buffer: Uint8Array): string {
-    const ALPHABET = CHAR_SETS.BASE58;
+    const ALPHABET = CHAR_SETS.B58;
 
     // Count leading zeros
     let zeros = 0;
@@ -282,7 +282,7 @@ export function bufferToBase58(buffer: Uint8Array): string {
  * @returns Uint8Array representation
  */
 export function base58ToBuffer(base58: string): Uint8Array {
-    const ALPHABET = CHAR_SETS.BASE58;
+    const ALPHABET = CHAR_SETS.B58;
 
     if (!base58) {
         return new Uint8Array(0);
@@ -350,7 +350,7 @@ export function bufferToBase32(
     buffer: Uint8Array,
     padding: boolean = true
 ): string {
-    const ALPHABET = CHAR_SETS.BASE32;
+    const ALPHABET = CHAR_SETS.B32;
     let result = "";
     let bits = 0;
     let value = 0;
@@ -385,7 +385,7 @@ export function bufferToBase32(
  * @returns Uint8Array representation
  */
 export function base32ToBuffer(base32: string): Uint8Array {
-    const ALPHABET = CHAR_SETS.BASE32;
+    const ALPHABET = CHAR_SETS.B32;
 
     // Remove padding and convert to uppercase
     const str = base32.toUpperCase().replace(/=+$/, "");

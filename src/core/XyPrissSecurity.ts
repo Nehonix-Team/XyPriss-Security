@@ -4,6 +4,8 @@
 
 import { Bridge } from "./bridge";
 import { APIKeyOptions } from "../types";
+import { C } from "../utils/constants";
+import { __strl__ } from "strulink";
 
 /**
  * ### XyPrissSecurity Main Class
@@ -18,15 +20,17 @@ export class XyPrissSecurity {
    * @returns A structured, cryptographically strong API key.
    */
   public static generateAPIKey(options: APIKeyOptions = {}): string {
-    const prefix = options.prefix || "xy";
-    const separator = options.separator || "_";
+    const prefix = options.prefix || "X";
+    const separator = options.separator || "";
     const randomLength = options.randomPartLength || 32;
-    const includeTimestamp = options.includeTimestamp !== false;
+    const includeTimestamp =
+      options.includeTimestamp !== undefined ? options.includeTimestamp : false; // default to: false
+    // console.log("includeTimestamp: ", includeTimestamp);
 
-    const random = Bridge.generatePassword(
-      randomLength,
-      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789",
-    );
+    //"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    const random = Bridge.generatePassword(randomLength, C.GenP); //  C.GenP + "+/"
+
+    // console.log("Randomed: ", random);
 
     let key = `${prefix}${separator}${random}`;
 
@@ -34,9 +38,14 @@ export class XyPrissSecurity {
       key = `${prefix}${separator}${Date.now()}${separator}${random}`;
     }
 
-    if (options.encoding === "base64" || options.encoding === "hex") {
-      const buf = Buffer.from(key);
-      return buf.toString(options.encoding);
+    let enc = options.encoding;
+    if (enc) {
+      if (enc === "hex") {
+        enc = "rawHex" as any;
+        options.encoding = "rawHex" as any;
+      }
+      const str = __strl__.encode(key, enc as any);
+      return str;
     }
 
     return key;
@@ -46,7 +55,8 @@ export class XyPrissSecurity {
    * Performs an environment security check to ensure integrity.
    */
   public static verifyRuntimeSecurity(): boolean {
-    return true;
+    //FIXME
+    return true; // always true
   }
 
   /**
@@ -74,7 +84,6 @@ export class XyPrissSecurity {
     return Bridge.isValidByteLength(str, expectedLength);
   }
 }
-
 
 /**
  * Verifies if a string has exactly the expected byte length (UTF-8).
