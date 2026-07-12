@@ -6,9 +6,8 @@ console.log(XyPrissSecurity.generateAPIKey());
 const pwd = new PasswordManager({
   strength: {
     minLength: 8,
-        checkDictionary: true,
-    
-  }
+    checkDictionary: true,
+  },
 });
 
 const strongPassword = pwd.strength("acid1234");
