@@ -23,6 +23,7 @@ import type {
   PassphraseOptions,
   PasswordGenerateOptions,
   PasswordStrengthResult,
+  PasswordStrengthOptions,
 } from "../types/PasswordManagerOptions";
 
 // ─── PasswordManager ──────────────────────────────────────────────────────────
@@ -65,6 +66,13 @@ export class PasswordManager {
   private readonly iterations: number;
   private readonly parallelism: number;
   private readonly pepper: string | undefined;
+  private readonly strengthOptions?: PasswordStrengthOptions;
+  
+  /** Cached wordlist for the strength method (preloaded if checkDictionary is enabled) */
+  private readonly cachedStrengthWordlist?: readonly string[];
+
+  /** Lazy cache for passphrase wordlists to avoid repeated disk reads */
+  private passphraseWordlistCache: Map<string, readonly string[]> = new Map();
 
   constructor(options: PasswordManagerOptions = {}) {
     this.algo = (options.algorithm ?? "argon2id").toLowerCase();
@@ -72,6 +80,11 @@ export class PasswordManager {
     this.iterations = options.iterations ?? 3;
     this.parallelism = options.parallelism ?? 4;
     this.pepper = options.pepper;
+    this.strengthOptions = options.strength;
+    
+    if (this.strengthOptions?.checkDictionary) {
+      this.cachedStrengthWordlist = getWordlist({ allowFallback: "silent" });
+    }
   }
 
   // ─── Hashing ───────────────────────────────────────────────────────────────
@@ -271,12 +284,19 @@ export class PasswordManager {
         // ts-source fallback: if __dirname ends with /core, ../mods resolves correctly
         "";
 
-    const wordlist = getWordlist({
-      dir: modsDir,
-      variant,
-      filePath,
-      allowFallback,
-    });
+    // ── Cache optimization for repeated calls ──────────────────────────────
+    const cacheKey = `${modsDir}|${variant}|${filePath ?? ""}|${allowFallback}`;
+    let wordlist = this.passphraseWordlistCache.get(cacheKey);
+
+    if (!wordlist) {
+      wordlist = getWordlist({
+        dir: modsDir,
+        variant,
+        filePath,
+        allowFallback,
+      });
+      this.passphraseWordlistCache.set(cacheKey, wordlist);
+    }
 
     const words: string[] = [];
     for (let i = 0; i < wordCount; i++) {
@@ -378,7 +398,7 @@ export class PasswordManager {
     if (hasRepeats) penaltyScore += 10;
     if (hasSequences) penaltyScore += 10;
 
-    // ── Entropy estimation (bits) ───────────────────────────────────────────
+    // ── Entropy & Crack Time Estimation ────────────────────────────────────
     let charsetSize = 0;
     if (hasLowercase) charsetSize += 26;
     if (hasUppercase) charsetSize += 26;
@@ -386,8 +406,19 @@ export class PasswordManager {
     if (hasSymbols) charsetSize += 32;
     const entropy =
       charsetSize > 0 ? Math.round(len * Math.log2(charsetSize)) : 0;
+      
+    // Assuming 1 billion offline guesses per second for crack time
+    const crackTimeSeconds = Math.pow(2, entropy) / 1_000_000_000;
+    let crackTimeDisplay = "Instantly";
+    if (crackTimeSeconds > 3153600000) crackTimeDisplay = "Centuries";
+    else if (crackTimeSeconds > 31536000) crackTimeDisplay = `${Math.round(crackTimeSeconds / 31536000)} years`;
+    else if (crackTimeSeconds > 2592000) crackTimeDisplay = `${Math.round(crackTimeSeconds / 2592000)} months`;
+    else if (crackTimeSeconds > 86400) crackTimeDisplay = `${Math.round(crackTimeSeconds / 86400)} days`;
+    else if (crackTimeSeconds > 3600) crackTimeDisplay = `${Math.round(crackTimeSeconds / 3600)} hours`;
+    else if (crackTimeSeconds > 60) crackTimeDisplay = `${Math.round(crackTimeSeconds / 60)} minutes`;
+    else if (crackTimeSeconds > 1) crackTimeDisplay = `${Math.round(crackTimeSeconds)} seconds`;
 
-    const score = Math.max(
+    let score = Math.max(
       0,
       Math.min(100, lengthScore + varietyScore - penaltyScore),
     );
@@ -407,6 +438,19 @@ export class PasswordManager {
     if (hasSequences)
       suggestions.push("Avoid common sequences (e.g. '123', 'abc').");
 
+    // ── Dictionary Check (if configured) ──────────────────────────────────
+    let hasDictionaryWord = false;
+    if (this.strengthOptions?.checkDictionary) {
+      const lowerPwd = password.toLowerCase();
+      const words = this.cachedStrengthWordlist || getWordlist({ allowFallback: "silent" });
+      // Only check words longer than 3 chars to avoid false positives on small substrings
+      if (words.some((w) => w.length > 3 && lowerPwd.includes(w))) {
+        hasDictionaryWord = true;
+        score = Math.max(0, score - 20); // Severe penalty for dictionary words
+        suggestions.push("Avoid using common dictionary words.");
+      }
+    }
+
     // ── Label ──────────────────────────────────────────────────────────────
     let label: PasswordStrengthResult["label"];
     if (score < 20) label = "very-weak";
@@ -415,10 +459,51 @@ export class PasswordManager {
     else if (score < 80) label = "strong";
     else label = "very-strong";
 
+    let isValid = true;
+    
+    // ── Apply custom rules ─────────────────────────────────────────────────
+    if (this.strengthOptions) {
+      if (this.strengthOptions.minLength && len < this.strengthOptions.minLength) {
+        isValid = false;
+        if (!suggestions.includes(`Use at least ${this.strengthOptions.minLength} characters.`)) {
+          suggestions.push(`Use at least ${this.strengthOptions.minLength} characters.`);
+        }
+      }
+      if (this.strengthOptions.maxLength && len > this.strengthOptions.maxLength) {
+        isValid = false;
+        suggestions.push(`Password must not exceed ${this.strengthOptions.maxLength} characters.`);
+      }
+      if (this.strengthOptions.requireUppercase && !hasUppercase) {
+        isValid = false;
+      }
+      if (this.strengthOptions.requireLowercase && !hasLowercase) {
+        isValid = false;
+      }
+      if (this.strengthOptions.requireNumbers && !hasNumbers) {
+        isValid = false;
+      }
+      if (this.strengthOptions.requireSymbols && !hasSymbols) {
+        isValid = false;
+      }
+      if (this.strengthOptions.preventRepeats && hasRepeats) {
+        isValid = false;
+      }
+      if (this.strengthOptions.preventSequences && hasSequences) {
+        isValid = false;
+      }
+      if (this.strengthOptions.checkDictionary && hasDictionaryWord) {
+        isValid = false;
+      }
+    } else {
+      // Default validity threshold if no rules provided (e.g. score >= 40)
+      isValid = score >= 40;
+    }
+
     return {
       score,
       label,
       suggestions,
+      isValid,
       analysis: {
         length: len,
         hasUppercase,
@@ -428,6 +513,8 @@ export class PasswordManager {
         hasRepeats,
         hasSequences,
         entropy,
+        crackTimeSeconds,
+        crackTimeDisplay,
       },
     };
   }

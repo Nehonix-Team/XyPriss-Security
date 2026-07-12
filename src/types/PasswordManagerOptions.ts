@@ -37,6 +37,35 @@ export interface PasswordManagerOptions extends PasswordHashOptions {
    * Store separately from the database (e.g., an environment variable).
    */
   pepper?: string;
+
+  /**
+   * Customization for the password strength method (e.g., required min/max length, mandatory character sets).
+   */
+  strength?: PasswordStrengthOptions;
+}
+
+/**
+ * Options for customizing password strength evaluation.
+ */
+export interface PasswordStrengthOptions {
+  /** Minimum required length. @default 8 */
+  minLength?: number;
+  /** Maximum required length. */
+  maxLength?: number;
+  /** Require at least one uppercase letter (A-Z). @default false */
+  requireUppercase?: boolean;
+  /** Require at least one lowercase letter (a-z). @default false */
+  requireLowercase?: boolean;
+  /** Require at least one digit (0-9). @default false */
+  requireNumbers?: boolean;
+  /** Require at least one special symbol. @default false */
+  requireSymbols?: boolean;
+  /** Prevent repeating characters (e.g. 'aaa'). @default false */
+  preventRepeats?: boolean;
+  /** Prevent common sequences (e.g. '123', 'abc'). @default false */
+  preventSequences?: boolean;
+  /** Check if the password contains common dictionary words. @default false */
+  checkDictionary?: boolean;
 }
 
 /**
@@ -137,7 +166,13 @@ export interface PasswordStrengthResult {
     hasRepeats: boolean;
     hasSequences: boolean;
     entropy: number;
+    /** Estimated offline cracking time in seconds (assuming 1 billion guesses/sec). */
+    crackTimeSeconds: number;
+    /** Human-readable representation of cracking time. */
+    crackTimeDisplay: string;
   };
+  /** Indicates whether the password meets all custom strength requirements. */
+  isValid?: boolean;
 }
 
 /**
