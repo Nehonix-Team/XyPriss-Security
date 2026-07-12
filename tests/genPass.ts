@@ -1,14 +1,22 @@
-import { PasswordManager, XyPrissSecurity } from "../src/core";
-console.log(XyPrissSecurity.generateAPIKey());
+import "xypriss";
+import { PasswordManager } from "../src";
 
-// import {__strl__} from "strulink"
-
-const pwd = new PasswordManager({
+export const pwd = new PasswordManager({
+  algorithm: "argon2id",
+  memoryCost: 65536,
+  parallelism: 4,
+  iterations: 3,
+  pepper: __sys__.__env__.get("PASSWORD_PEPPER"),
   strength: {
     minLength: 8,
-    checkDictionary: true,
+    checkDictionary: false,
+    requireSymbols: false,
+    requireLowercase: false,
+    requireUppercase: false,
+    preventSequences: false
   },
 });
 
-const strongPassword = pwd.strength("acid1234");
-console.log(strongPassword);
+const p = "12345678";
+
+console.log("res: ", pwd.strength(p));

@@ -439,20 +439,8 @@ export class PasswordManager {
       Math.min(100, lengthScore + varietyScore - penaltyScore),
     );
 
-    // ── Suggestions ────────────────────────────────────────────────────────
-    if (len < 8) suggestions.push("Use at least 8 characters.");
-    if (len < 12) suggestions.push("A length of 12 or more is recommended.");
-    if (len < 16)
-      suggestions.push("Aim for 16+ characters for high-security contexts.");
-    if (!hasUppercase) suggestions.push("Add uppercase letters (A-Z).");
-    if (!hasLowercase) suggestions.push("Add lowercase letters (a-z).");
-    if (!hasNumbers) suggestions.push("Include at least one digit (0-9).");
-    if (!hasSymbols)
-      suggestions.push("Include at least one special character (!@#$%...).");
-    if (hasRepeats)
-      suggestions.push("Avoid repeating characters (e.g. 'aaa').");
-    if (hasSequences)
-      suggestions.push("Avoid common sequences (e.g. '123', 'abc').");
+    // ── Suggestions (Dynamic based on configuration) ───────────────────────
+    // We will populate suggestions during the custom rules evaluation below.
 
     // ── Dictionary Check (if configured) ──────────────────────────────────
     let hasDictionaryWord = false;
@@ -477,13 +465,11 @@ export class PasswordManager {
 
     let isValid = true;
     
-    // ── Apply custom rules ─────────────────────────────────────────────────
+    // ── Apply custom rules & populate suggestions ──────────────────────────
     if (this.strengthOptions) {
       if (this.strengthOptions.minLength && len < this.strengthOptions.minLength) {
         isValid = false;
-        if (!suggestions.includes(`Use at least ${this.strengthOptions.minLength} characters.`)) {
-          suggestions.push(`Use at least ${this.strengthOptions.minLength} characters.`);
-        }
+        suggestions.push(`Use at least ${this.strengthOptions.minLength} characters.`);
       }
       if (this.strengthOptions.maxLength && len > this.strengthOptions.maxLength) {
         isValid = false;
@@ -491,24 +477,31 @@ export class PasswordManager {
       }
       if (this.strengthOptions.requireUppercase && !hasUppercase) {
         isValid = false;
+        suggestions.push("Add uppercase letters (A-Z).");
       }
       if (this.strengthOptions.requireLowercase && !hasLowercase) {
         isValid = false;
+        suggestions.push("Add lowercase letters (a-z).");
       }
       if (this.strengthOptions.requireNumbers && !hasNumbers) {
         isValid = false;
+        suggestions.push("Include at least one digit (0-9).");
       }
       if (this.strengthOptions.requireSymbols && !hasSymbols) {
         isValid = false;
+        suggestions.push("Include at least one special character (!@#$%...).");
       }
       if (this.strengthOptions.preventRepeats && hasRepeats) {
         isValid = false;
+        suggestions.push("Avoid repeating characters (e.g. 'aaa').");
       }
       if (this.strengthOptions.preventSequences && hasSequences) {
         isValid = false;
+        suggestions.push("Avoid common sequences (e.g. '123', 'abc').");
       }
       if (this.strengthOptions.checkDictionary && hasDictionaryWord) {
         isValid = false;
+        // Suggestion for dictionary word is already added in the Dictionary Check block above
       }
     } else {
       // Default validity threshold if no rules provided (e.g. score >= 40)
