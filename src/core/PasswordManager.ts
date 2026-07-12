@@ -26,6 +26,17 @@ import type {
   PasswordStrengthOptions,
 } from "../types/PasswordManagerOptions";
 
+const DEFAULT_STRENGTH_OPTIONS: PasswordStrengthOptions = {
+  minLength: 8,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumbers: true,
+  requireSymbols: true,
+  preventRepeats: true,
+  preventSequences: true,
+  checkDictionary: true,
+};
+
 // ─── PasswordManager ──────────────────────────────────────────────────────────
 
 /***************************************************************************
@@ -80,9 +91,14 @@ export class PasswordManager {
     this.iterations = options.iterations ?? 3;
     this.parallelism = options.parallelism ?? 4;
     this.pepper = options.pepper;
-    this.strengthOptions = options.strength;
     
-    if (this.strengthOptions?.checkDictionary) {
+    // Merge provided strength options with secure defaults
+    this.strengthOptions = {
+      ...DEFAULT_STRENGTH_OPTIONS,
+      ...(options.strength || {}),
+    };
+    
+    if (this.strengthOptions.checkDictionary) {
       this.cachedStrengthWordlist = getWordlist({ allowFallback: "silent" });
     }
   }
