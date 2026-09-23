@@ -18,6 +18,7 @@ The framework documentation is modularized for clarity and depth.
 ### Modules
 
 - [Core](docs/modules/core.md) - Foundational primitives (Hash, Random, Password, SecureBuffer, XyPrissSecurity).
+- [Hashing & Scrypt](docs/modules/hashing.md) - High-throughput hashing, conditioned return types, short IDs, Scrypt KDF, and constant-time verification.
 - [Ed25519](docs/modules/ed25519.md) - High-performance EdDSA signature verification.
 - [RSA and Byte Utilities](docs/modules/rsa-and-byte-utils.md) - RSA-PSS signing, RSA-OAEP encryption, key generation, and UTF-8 byte validation.
 - [Cache](docs/modules/cache.md) - Ultra-fast secure in-memory cache system (UFSIMC).

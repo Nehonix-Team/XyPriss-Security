@@ -46,30 +46,58 @@ Converts a `Uint8Array` to a UTF-8 string.
 
 The `Utils` object provides a consolidated entry point for common operations.
 
-### Utils.hash(data, options?)
+### hash(data, optionsOrAlgoOrLength?, length?)
 
-Alias for `Hash.create`.
+High-performance cryptographic hashing with conditioned return types, direct string truncation, and algorithm selection.
 
-### Utils.getRandomBytes(length)
+- **Returns:** `SecureBuffer` when `outputFormat: "buffer" | "uint8array"`; `string` otherwise.
+- **Truncation:** Pass a `number` to truncate the hex string natively without `.substring(0, N)`.
 
-Alias for `Random.getRandomBytes`.
+```typescript
+import { hash } from "xypriss-security";
 
-### Utils.encrypt(data, key, algo?)
+// 1. Direct ID generation with truncation (12 chars hex)
+const shortId = hash("user@example.com", 12); // "b4c9a289323b"
+
+// 2. Specific algorithm with truncation
+const blakeShort = hash("user@example.com", "blake2b", 16);
+
+// 3. Binary output (returns SecureBuffer)
+const buf = hash("sensitive data", { outputFormat: "buffer" });
+
+// 4. Default full SHA-256 hash (64 chars hex)
+const full = hash("sensitive data");
+```
+
+> For the comprehensive guide and advanced patterns, see [Hashing, Scrypt & Verification](./hashing.md).
+
+### timingSafeEqual(a, b)
+
+Compares two strings (e.g. hex hashes) or `Uint8Array` / `Buffer` in constant time using Go's `subtle.ConstantTimeCompare`. Direct replacement for Node.js `crypto.timingSafeEqual`.
+
+```typescript
+import { timingSafeEqual } from "xypriss-security";
+
+const isValid = timingSafeEqual(keyHex, computedHashHex);
+```
+
+### getRandomBytes(length)
+
+Generates cryptographically secure random bytes via Go's native `crypto/rand`.
+
+```typescript
+import { getRandomBytes } from "xypriss-security";
+
+const salt = getRandomBytes(16).toString("hex");
+```
+
+### encrypt(data, key, algo?)
 
 Performs quick string-to-string encryption using the native bridge (AES/ChaCha20).
 
-### Utils.decrypt(encrypted, key, algo?)
+### decrypt(encrypted, key, algo?)
 
 Performs quick string-to-string decryption.
-
-**Example:**
-
-```typescript
-import { Utils } from "xypriss-security";
-
-const bytes = Utils.getRandomBytes(16);
-const hex = Utils.hash("test");
-```
 
 ---
 

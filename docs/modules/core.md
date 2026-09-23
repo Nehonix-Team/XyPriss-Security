@@ -40,24 +40,36 @@ const apiKey = Cipher.XSec.generateAPIKey();
 
 High-performance hashing, HMAC, and PBKDF2 operations.
 
-### static create(input, options?)
+### static create(input, optionsOrAlgoOrLength?, length?)
 
-Creates a secure hash or derived key.
+Creates a secure cryptographic hash or derived key with conditioned return types and optional length truncation.
+
+**Overload Signatures:**
+
+- `create(input, options: { outputFormat: "buffer" | "uint8array" }): SecureBuffer`
+- `create(input, length: number): string`
+- `create(input, algorithm: HashAlgorithm, length?: number): string`
+- `create(input, options?: HashOptions): string`
 
 **Parameters:**
 
 - `input`: `string | Uint8Array` - The data to be hashed.
 - `options`: `HashOptions` (Optional)
-  - `algorithm`: `"sha256" | "sha512" | "pbkdf2" | "argon2id"` - Default is `"sha256"`.
+  - `algorithm`: `"sha256" | "sha512" | "sha3-256" | "blake2b" | "blake2s" | "pbkdf2" | "argon2id" | "scrypt"` - Default is `"sha256"`.
+  - `length`: `number` - Desired character length of output string (e.g. `12` for short IDs).
+  - `outputFormat`: `"hex" | "base64" | "buffer" | "uint8array"` - Default is `"hex"`.
   - `iterations`: `number` - For PBKDF2 (Default: 100,000).
-  - `outputFormat`: `"hex" | "base64" | "buffer"` - Default is `"hex"`.
+  - `salt`: `string | Uint8Array` - For PBKDF2.
 
-**Returns:** `string | SecureBuffer`
+**Returns:** `SecureBuffer` when binary format is requested, `string` otherwise.
 
 **Example:**
 
 ```typescript
 import { Hash } from "xypriss-security";
+
+// Short ID generation (12 chars hex)
+const shortId = Hash.create("user@domain.com", 12);
 
 // Standard Hash
 const hexHash = Hash.create("message");
@@ -68,6 +80,18 @@ const key = Hash.create("password", {
   iterations: 210000,
   outputFormat: "buffer",
 });
+```
+
+> For the complete reference, see [Hashing, Scrypt & Verification](./hashing.md).
+
+### static timingSafeEqual(a, b)
+
+Compares two strings or `Uint8Array` / `Buffer` in constant time to eliminate timing side channels.
+
+```typescript
+import { Hash } from "xypriss-security";
+
+const isMatch = Hash.timingSafeEqual(storedHashHex, calculatedHashHex);
 ```
 
 ### static pkce(verifier, method?)
