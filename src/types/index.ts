@@ -50,6 +50,16 @@ export type HashAlgorithm =
 export type HashOutputFormat = "hex" | "base64" | "buffer" | "uint8array";
 
 /**
+ * Binary output formats that resolve to a SecureBuffer.
+ */
+export type HashBufferFormat = "buffer" | "uint8array";
+
+/**
+ * Textual output formats that resolve to a string.
+ */
+export type HashStringFormat = "hex" | "base64";
+
+/**
  * Supported HMAC algorithms.
  */
 export type HMACAlgorithm =
@@ -86,11 +96,17 @@ export type BaseEncodingType = "hex" | "base64" | "base32"
 /**
  * Configuration options for hashing operations.
  */
-export interface HashOptions {
+export interface HashOptions<TFormat extends HashOutputFormat = HashOutputFormat> {
   /** The hashing algorithm to utilize. Defaults to 'sha256'. */
   algorithm?: HashAlgorithm;
-  /** The desired output format of the hash (hex, base64, buffer, uint8array). */
-  outputFormat?: HashOutputFormat;
+  /** The desired output format of the hash (hex, base64, buffer, uint8array). Defaults to 'hex'. */
+  outputFormat?: TFormat;
+  /**
+   * Desired length of the resulting string output.
+   * When set, truncates the resulting hash string to N characters (e.g. `12` for short unique IDs).
+   * Eliminates the need for manual `.substring(0, N)`.
+   */
+  length?: number;
   /** The number of iterations for the hashing process (relevant for KDFs like PBKDF2). */
   iterations?: number;
   /** An optional salt to add entropy to the hash. */

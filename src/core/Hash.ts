@@ -3,7 +3,13 @@
  ****************************************************************************/
 
 import { Bridge } from "./bridge";
-import { HashOptions, HMACAlgorithm } from "../types";
+import {
+  HashOptions,
+  HMACAlgorithm,
+  HashAlgorithm,
+  HashBufferFormat,
+  HashStringFormat,
+} from "../types";
 import { Random } from "./Random";
 import { SecureBuffer } from "./SecureBuffer";
 
@@ -14,16 +20,79 @@ import { SecureBuffer } from "./SecureBuffer";
  */
 export class Hash {
   /**
-   * Creates a secure hash of the provided input data.
+   * Creates a secure cryptographic hash returning a `SecureBuffer` when binary output (`"buffer"` or `"uint8array"`) is requested.
    *
    * @param input - The string or buffer data to be hashed.
-   * @param options - Configuration for the hashing algorithm and output format.
-   * @returns The resulting hash as a string or SecureBuffer.
+   * @param options - Configuration specifying `outputFormat: "buffer" | "uint8array"`.
+   * @returns A `SecureBuffer` containing the raw hash bytes.
    */
   public static create(
     input: string | Uint8Array,
-    options: HashOptions = {},
+    options: HashOptions<HashBufferFormat> & { outputFormat: HashBufferFormat },
+  ): SecureBuffer;
+
+  /**
+   * Creates a secure cryptographic hash truncated to a specific string length.
+   * Useful for generating short unique IDs or compact tokens.
+   *
+   * @param input - The string or buffer data to be hashed.
+   * @param length - Maximum character length of the resulting hex string (e.g. `12`).
+   * @returns The truncated hexadecimal hash string.
+   */
+  public static create(
+    input: string | Uint8Array,
+    length: number,
+  ): string;
+
+  /**
+   * Creates a secure cryptographic hash using a specific algorithm and optional length.
+   *
+   * @param input - The string or buffer data to be hashed.
+   * @param algorithm - Cryptographic hash algorithm (e.g. `"sha256"`, `"blake2b"`, `"sha512"`).
+   * @param length - Optional maximum character length to truncate the output.
+   * @returns The hexadecimal hash string.
+   */
+  public static create(
+    input: string | Uint8Array,
+    algorithm: HashAlgorithm,
+    length?: number,
+  ): string;
+
+  /**
+   * Creates a secure cryptographic hash returning a string in hex or base64 format.
+   *
+   * @param input - The string or buffer data to be hashed.
+   * @param options - Optional configuration for algorithm, salt, format, and length.
+   * @returns The resulting cryptographic hash string.
+   */
+  public static create(
+    input: string | Uint8Array,
+    options?: HashOptions<HashStringFormat>,
+  ): string;
+
+  /**
+   * General implementation of hash creation.
+   */
+  public static create(
+    input: string | Uint8Array,
+    optionsOrAlgoOrLength?: HashOptions | HashAlgorithm | number,
+    lengthParam?: number,
   ): string | SecureBuffer {
+    let options: HashOptions = {};
+    if (typeof optionsOrAlgoOrLength === "number") {
+      options = { length: optionsOrAlgoOrLength };
+    } else if (typeof optionsOrAlgoOrLength === "string") {
+      options = {
+        algorithm: optionsOrAlgoOrLength as HashAlgorithm,
+        length: typeof lengthParam === "number" ? lengthParam : undefined,
+      };
+    } else if (optionsOrAlgoOrLength && typeof optionsOrAlgoOrLength === "object") {
+      options = { ...optionsOrAlgoOrLength };
+      if (typeof lengthParam === "number") {
+        options.length = lengthParam;
+      }
+    }
+
     const algo = (options.algorithm?.toString() || "sha256").toLowerCase();
     let resultHex: string;
 
@@ -54,16 +123,27 @@ export class Hash {
     const format = options.outputFormat || "hex";
     switch (format) {
       case "buffer":
-      case "uint8array":
+      case "uint8array": {
         const matches = resultHex.match(/.{1,2}/g) || [];
-        return new SecureBuffer(
-          new Uint8Array(matches.map((byte) => parseInt(byte, 16))),
-        );
-      case "base64":
+        const bytes = new Uint8Array(matches.map((byte) => parseInt(byte, 16)));
+        const finalBytes =
+          typeof options.length === "number" && options.length > 0
+            ? bytes.subarray(0, options.length)
+            : bytes;
+        return new SecureBuffer(finalBytes);
+      }
+      case "base64": {
         const buf = Buffer.from(resultHex, "hex");
-        return buf.toString("base64") as any;
-      default:
-        return resultHex;
+        const b64 = buf.toString("base64");
+        return typeof options.length === "number" && options.length > 0
+          ? b64.substring(0, options.length)
+          : b64;
+      }
+      default: {
+        return typeof options.length === "number" && options.length > 0
+          ? resultHex.substring(0, options.length)
+          : resultHex;
+      }
     }
   }
 
