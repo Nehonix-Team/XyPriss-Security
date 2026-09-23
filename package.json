@@ -1,6 +1,6 @@
 {
   "name": "xypriss-security",
-  "version": "2.1.19",
+  "version": "2.1.20",
   "description": "Advanced High-Performance Security Framework. Military-grade encryption, post-quantum resilience, and fortified data structures.",
   "author": {
     "name": "NEHONIX",
@@ -14,10 +14,10 @@
   ],
   "scripts": {
     "build": "xfpm run build:ts",
-    "build:all": "npm run build \u0026\u0026 npm run build:release",
+    "build:all": "npm run build && npm run build:release",
     "build:core": "node scripts/build-core.js",
     "build:release": "bash scripts/release-build.sh",
-    "build:ts": "rimraf dist \u0026\u0026 tsc \u0026\u0026 mkdir -p dist/src/mods \u0026\u0026 cp src/mods/*.txt dist/src/mods/",
+    "build:ts": "rimraf dist && tsc && mkdir -p dist/src/mods && cp src/mods/*.txt dist/src/mods/",
     "postinstall": "node scripts/build-core.js",
     "prepublishOnly": "npm run build",
     "test": "bun run lib/test_ultra_robust.ts"

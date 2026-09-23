@@ -224,6 +224,20 @@ export const Bridge = {
     return Bridge._call("pbkdf2", argPass, hexSalt, iterations, keyLen, algo);
   },
 
+  scrypt: (
+    pass: string,
+    salt: Uint8Array,
+    keyLen: number = 64,
+    cost: number = 16384,
+    r: number = 8,
+    p: number = 1,
+  ) => {
+    const isLarge = pass.length > 32768;
+    const argPass = isLarge ? { __stdin: true, data: pass } : pass;
+    const hexSalt = Buffer.from(salt).toString("hex");
+    return Bridge._call("scrypt", argPass, hexSalt, cost, r, p, keyLen);
+  },
+
   constantTimeCompare: (a: Uint8Array, b: Uint8Array) => {
     const hexA = Buffer.from(a).toString("hex");
     const hexB = Buffer.from(b).toString("hex");

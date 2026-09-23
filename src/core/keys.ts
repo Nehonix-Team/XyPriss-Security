@@ -1,6 +1,6 @@
 /**
- * Key Management and Derivation
- * High-performance Go-backed operations
+ * Key Management, Asymmetric Cryptography, and Key Derivation
+ * High-performance Go-backed operations.
  */
 
 import { KeyDerivationOptions } from "../types";
@@ -8,14 +8,87 @@ import { Password } from "./Password";
 import { Bridge } from "./bridge";
 import { Random } from "./Random";
 
+/**
+ * ### Keys Class
+ *
+ * Comprehensive cryptographic key management, key derivation, and asymmetric operations.
+ *
+ * Powered by the native Go core for military-grade performance and security:
+ * - **Key Derivation (KDF)**:
+ *   - **Scrypt**: Memory-hard KDF, 100% compatible with Node.js `crypto.scryptSync`.
+ *   - **PBKDF2**: OWASP-compliant password-based key derivation (HMAC-SHA256, HMAC-SHA512).
+ *   - **HKDF**: RFC 5869 HMAC-based Extract-and-Expand key derivation.
+ *   - **Argon2id**: Memory-hard derivation via modular password hashing.
+ * - **Asymmetric Cryptography**:
+ *   - **RSA-4096**: Keypair generation, RSA-PSS signatures, and RSA-OAEP encryption/decryption.
+ *   - **Ed25519**: High-performance signature verification with automatic streaming for large payloads (>32KB).
+ * - **Secure Streaming File Vault**:
+ *   - Hardware-accelerated, chunked AEAD encryption/decryption (`AES-256-GCM`, `ChaCha20-Poly1305`)
+ *     with atomic filesystem staging and salt extraction.
+ *
+ * @example
+ * ```typescript
+ * import { Keys } from "xypriss-security";
+ *
+ * // 1. Scrypt key derivation (raw 64-byte key in hex)
+ * const salt = Keys.scrypt("mypassword", "salt123", 64);
+ *
+ * // 2. Generate RSA-4096 key pair
+ * const { publicKey, privateKey } = await Keys.generateRSAKeyPair();
+ *
+ * // 3. Sign & verify data using RSA-PSS
+ * const signature = await Keys.rsaSign(privateKey, "Important transaction data");
+ * const isValid = await Keys.rsaVerify(publicKey, "Important transaction data", signature);
+ * ```
+ */
 export class Keys {
   /**
-   * Derives a cryptographically strong key from an input secret.
-   * Supports complex derivation paths including Argon2id, PBKDF2, and HKDF.
+   * Derives a cryptographically strong symmetric key from a master secret or password.
    *
-   * @param input - The base secret or password to derive from.
-   * @param options - Detailed configuration for the derivation process.
-   * @returns A Promise resolving to the derived key (hex format for PBKDF2/HKDF, signed for others).
+   * Automatically dispatches to the requested KDF algorithm:
+   * - `"scrypt"`: High-security memory-hard KDF, compatible with Node.js `crypto.scryptSync`. Returns hex string.
+   * - `"pbkdf2"`: OWASP-standard derivation using HMAC-SHA256 or HMAC-SHA512. Returns hex string.
+   * - `"hkdf"`: RFC 5869 extract-and-expand key derivation for deriving subkeys from high-entropy inputs. Returns hex string.
+   * - `"argon2id"`: Default memory-hard password hashing format (returns `$xypriss$argon2id$...`).
+   *
+   * @param input - The base secret, passphrase, or input key material (string or `Uint8Array`).
+   * @param options - Detailed configuration options for the derivation process.
+   * @param options.algorithm - KDF algorithm: `"scrypt"`, `"pbkdf2"`, `"hkdf"`, or `"argon2id"`. Defaults to `"argon2id"`.
+   * @param options.salt - Cryptographic salt (string or `Uint8Array`). If omitted, a secure random salt is generated.
+   * @param options.keyLength - Desired derived key length in bytes. Defaults to `64` for Scrypt, `32` for others.
+   * @param options.iterations - Iteration count for PBKDF2 (e.g. 100,000) or CPU cost parameter $N$ for Scrypt (e.g. 16384).
+   * @param options.digest - Hash digest for PBKDF2 (`"sha256"` or `"sha512"`).
+   * @param options.info - Context/application-specific info string or buffer for HKDF expansion.
+   * @param options.parallelism - Parallelism factor $p$ for Scrypt / Argon2id. Defaults to `1`.
+   *
+   * @returns A promise resolving to the derived key (hex-encoded string for Scrypt/PBKDF2/HKDF, or `$xypriss$` modular format for Argon2id).
+   * @throws {Error} If an unsupported algorithm is specified or derivation fails.
+   *
+   * @example
+   * ```typescript
+   * // Scrypt: Derive a 64-byte key in hex (drop-in equivalent to crypto.scryptSync)
+   * const scryptKey = await Keys.deriveKey("user_pin_1234", {
+   *   algorithm: "scrypt",
+   *   salt: Buffer.from("c72cccea0dea40e308f5958e8f41564b", "hex"),
+   *   keyLength: 64,
+   * });
+   * console.log("Scrypt Key (hex):", scryptKey);
+   *
+   * // PBKDF2: Derive a 32-byte AES key using 100,000 iterations of SHA-256
+   * const pbkdf2Key = await Keys.deriveKey("master_passphrase", {
+   *   algorithm: "pbkdf2",
+   *   iterations: 100000,
+   *   keyLength: 32,
+   *   digest: "sha256",
+   * });
+   *
+   * // HKDF: Derive subkeys from a shared secret with context info
+   * const encryptionSubkey = await Keys.deriveKey(sharedSecret, {
+   *   algorithm: "hkdf",
+   *   info: "app-encryption-v1",
+   *   keyLength: 32,
+   * });
+   * ```
    */
   public static async deriveKey(
     input: string | Uint8Array,
@@ -55,13 +128,82 @@ export class Keys {
       );
     }
 
-    // Default to Argon2id/Scrypt via Password module
+    // Handle modern Scrypt KDF branch (compatible with crypto.scryptSync)
+    if (algo === "scrypt") {
+      const salt = options.salt || Random.getRandomBytes(16).toUint8Array();
+      const saltBytes = typeof salt === "string" ? Buffer.from(salt) : salt;
+      return Bridge.scrypt(
+        strInput,
+        saltBytes,
+        options.keyLength || 64,
+        options.iterations || options.memoryCost || 16384,
+        8,
+        options.parallelism || 1,
+      );
+    }
+
+    // Default to Argon2id via Password module
     return Password.hash(strInput, options);
   }
 
   /**
-   * Generates a new RSA key pair in JSON format.
-   * @returns A Promise resolving to an object containing publicKey and privateKey.
+   * Derives a raw cryptographic key of `keyLength` bytes using the Scrypt algorithm.
+   *
+   * Direct, synchronous equivalent to Node.js `crypto.scryptSync(password, salt, keyLength, options)`.
+   * Produces identical output to the Node.js standard library with matching parameters.
+   *
+   * @param password - The password, PIN, or passphrase (string or `Uint8Array`).
+   * @param salt - The cryptographic salt (string or `Uint8Array`).
+   * @param keyLength - Desired key length in bytes. Defaults to `64`.
+   * @param cost - CPU/memory cost parameter $N$ (must be a power of 2). Defaults to `16384` (Node.js default).
+   * @param r - Block size parameter. Defaults to `8`.
+   * @param p - Parallelization factor. Defaults to `1`.
+   *
+   * @returns The derived key as a lowercase hexadecimal string ($2 \times \text{keyLength}$ characters).
+   * @throws {Error} If Scrypt derivation fails or parameters are invalid.
+   *
+   * @example
+   * ```typescript
+   * import { Keys, Random } from "xypriss-security";
+   *
+   * const salt = Random.getRandomBytes(16).toUint8Array();
+   *
+   * // Derive a 64-byte key in hex (128 hex chars)
+   * const derivedKeyHex = Keys.scrypt("my_secret_pin", salt, 64);
+   * console.log(derivedKeyHex);
+   * // => "e505a1409236798a55e4cb907b8458d5bf80a514..."
+   * ```
+   */
+  public static scrypt(
+    password: string | Uint8Array,
+    salt: string | Uint8Array,
+    keyLength: number = 64,
+    cost: number = 16384,
+    r: number = 8,
+    p: number = 1,
+  ): string {
+    const strPass =
+      typeof password === "string" ? password : new TextDecoder().decode(password);
+    const saltBytes = typeof salt === "string" ? Buffer.from(salt) : salt;
+    return Bridge.scrypt(strPass, saltBytes, keyLength, cost, r, p);
+  }
+
+  /**
+   * Generates a high-entropy 4096-bit RSA asymmetric key pair.
+   *
+   * Both keys are returned in standard PEM encoding (PKCS#1 for private key, PKIX for public key).
+   *
+   * @returns A promise resolving to an object containing PEM-formatted `publicKey` and `privateKey`.
+   * @throws {Error} If key generation fails in the native engine.
+   *
+   * @example
+   * ```typescript
+   * const { publicKey, privateKey } = await Keys.generateRSAKeyPair();
+   * console.log(publicKey);
+   * // -----BEGIN PUBLIC KEY-----
+   * // MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEA...
+   * // -----END PUBLIC KEY-----
+   * ```
    */
   public static async generateRSAKeyPair(): Promise<{
     publicKey: string;
@@ -71,10 +213,22 @@ export class Keys {
   }
 
   /**
-   * Signs data using RSA-PSS.
-   * @param privateKey - The PEM-encoded RSA private key.
-   * @param data - The data to sign.
-   * @returns The signature in hex format.
+   * Digitally signs arbitrary data using RSA-PSS with SHA-256.
+   *
+   * RSA-PSS (Probabilistic Signature Scheme, RFC 8017 / PKCS#1 v2.1) provides
+   * provable security and is strictly preferred over legacy RSA PKCS#1 v1.5.
+   *
+   * @param privateKey - The PEM-encoded 4096-bit RSA private key.
+   * @param data - The plaintext data string or message to sign.
+   *
+   * @returns A promise resolving to the signature as a hexadecimal string.
+   * @throws {Error} If private key parsing or signing fails.
+   *
+   * @example
+   * ```typescript
+   * const message = JSON.stringify({ transferId: "TX-1092", amount: 5000 });
+   * const signatureHex = await Keys.rsaSign(privateKey, message);
+   * ```
    */
   public static async rsaSign(
     privateKey: string,
@@ -84,11 +238,22 @@ export class Keys {
   }
 
   /**
-   * Verifies an RSA-PSS signature.
+   * Verifies an RSA-PSS digital signature against original data using the public key.
+   *
    * @param publicKey - The PEM-encoded RSA public key.
-   * @param data - The original data.
-   * @param signature - The hex-encoded signature.
-   * @returns True if the signature is valid.
+   * @param data - The original plaintext data string that was signed.
+   * @param signature - The hexadecimal-encoded signature string to verify.
+   *
+   * @returns A promise resolving to `true` if the signature is authentic and unaltered, `false` otherwise.
+   * @throws {Error} If public key parsing fails.
+   *
+   * @example
+   * ```typescript
+   * const isValid = await Keys.rsaVerify(publicKey, message, signatureHex);
+   * if (!isValid) {
+   *   throw new Error("Tampered or forged message detected!");
+   * }
+   * ```
    */
   public static async rsaVerify(
     publicKey: string,
@@ -99,10 +264,20 @@ export class Keys {
   }
 
   /**
-   * Encrypts data using RSA-OAEP.
-   * @param publicKey - The PEM-encoded RSA public key.
-   * @param data - The data to encrypt.
-   * @returns The encrypted data in hex format.
+   * Encrypts data using RSA-OAEP (Optimal Asymmetric Encryption Padding) with SHA-256.
+   *
+   * Safe for asymmetric encryption of small payloads (e.g. symmetric keys or credentials).
+   *
+   * @param publicKey - The recipient's PEM-encoded RSA public key.
+   * @param data - The plaintext data string to encrypt.
+   *
+   * @returns A promise resolving to the ciphertext as a hexadecimal string.
+   * @throws {Error} If public key parsing fails or payload exceeds RSA maximum size.
+   *
+   * @example
+   * ```typescript
+   * const encryptedSecret = await Keys.rsaEncrypt(publicKey, "symmetric-session-key-32b");
+   * ```
    */
   public static async rsaEncrypt(
     publicKey: string,
@@ -112,10 +287,18 @@ export class Keys {
   }
 
   /**
-   * Decrypts RSA-OAEP encrypted data.
-   * @param privateKey - The PEM-encoded RSA private key.
-   * @param encryptedHex - The hex-encoded encrypted data.
-   * @returns The decrypted plaintext.
+   * Decrypts RSA-OAEP encrypted ciphertext using the corresponding private key.
+   *
+   * @param privateKey - The recipient's PEM-encoded RSA private key.
+   * @param encryptedHex - The hexadecimal-encoded ciphertext to decrypt.
+   *
+   * @returns A promise resolving to the original decrypted plaintext string.
+   * @throws {Error} If private key parsing or decryption/padding verification fails.
+   *
+   * @example
+   * ```typescript
+   * const decryptedSecret = await Keys.rsaDecrypt(privateKey, encryptedSecret);
+   * ```
    */
   public static async rsaDecrypt(
     privateKey: string,
@@ -125,11 +308,30 @@ export class Keys {
   }
 
   /**
-   * Verifies an Ed25519 signature.
-   * @param publicKey - The public key (hex or Uint8Array).
-   * @param data - The data that was signed (string or Uint8Array).
-   * @param signature - The signature (base64 or Uint8Array).
-   * @returns True if valid.
+   * Verifies an Ed25519 (Edwards-curve Digital Signature Algorithm, RFC 8032) signature.
+   *
+   * Features:
+   * - Ultra-high verification speed.
+   * - High security level (Curve25519).
+   * - Automatic transparent streaming through stdin when payload exceeds 32KB to bypass OS `E2BIG` argument limits.
+   *
+   * @param publicKey - The 32-byte Ed25519 public key (as hexadecimal string or `Uint8Array`).
+   * @param data - The original data payload that was signed (string or `Uint8Array`).
+   * @param signature - The 64-byte Ed25519 signature (as base64 string or `Uint8Array`).
+   *
+   * @returns `true` if the signature is valid, `false` otherwise.
+   *
+   * @example
+   * ```typescript
+   * import { Keys } from "xypriss-security";
+   *
+   * const pubKeyHex = "fad62d1d5e3c59f68ca394cc71bd174e12eb68111106a7d897b9fd6709adacc8";
+   * const data = "Payload to authenticate";
+   * const signatureBase64 = "9pe5W9PBJ0BUCK+QDDteUSElxo3XwG3ORzbT5HbhtVBT...";
+   *
+   * const isVerified = Keys.ed25519Verify(pubKeyHex, data, signatureBase64);
+   * console.log("Signature valid:", isVerified);
+   * ```
    */
   public static ed25519Verify(
     publicKey: string | Uint8Array,
@@ -140,26 +342,36 @@ export class Keys {
   }
 
   /**
-   * Encrypts a large file using high-performance, hardware-accelerated chunking.
+   * Encrypts a file of arbitrary size using chunked AEAD (Authenticated Encryption with Associated Data).
    *
-   * @description
-   * Processes files via a native encryption bridge using derived keys (PBKDF2).
-   * Implements a staging strategy to ensure data integrity: ciphertext is
-   * finalized with a 32-byte salt header before an atomic move to the target path.
+   * Architecture & Reliability:
+   * - **Memory Efficient**: Streams file in chunks, maintaining minimal memory footprint regardless of file size.
+   * - **Atomic Staging**: Encrypts into a temporary staging file before performing an atomic move to the target path, preventing partial or corrupted files.
+   * - **Integrated Salt Header**: Automatically generates and prefixes a 32-byte salt header.
+   * - **Cipher Choice**: Supports `AES-256-GCM` (default) and `ChaCha20-Poly1305` (ideal for mobile/ARM or quantum-safe profiles).
    *
-   * @param {string} inputPath - Absolute path to the source file.
-   * @param {string} outputPath - Target destination for the encrypted data.
-   * @param {string} key - Raw passphrase for cryptographic derivation.
-   * @param {object} [options={}] - Encryption parameters.
-   * @param {string} [options.algorithm="aes-256-gcm"] - Selection of the cipher suite.
-   * @param {number} [options.keyDerivationIterations=100000] - Cost factor for PBKDF2.
-   * @param {boolean} [options.quantumSafe=false] - If true, enforces Post-Quantum resistant ciphers.
+   * @param inputPath - Absolute path to the cleartext source file.
+   * @param outputPath - Target destination path for the encrypted `.vault` or ciphertext file.
+   * @param key - The raw passphrase or secret used for PBKDF2 key derivation.
+   * @param options - Encryption configuration options.
+   * @param options.algorithm - Cipher suite: `"aes-256-gcm"` (default) or `"chacha20-poly1305"`.
+   * @param options.keyDerivationIterations - PBKDF2 iteration count (default: 100,000).
+   * @param options.quantumSafe - If `true`, enforces ChaCha20-Poly1305.
    *
-   * @throws {Error | SystemError} On bridge failure, I/O exhaustion, or permission issues.
-   * @returns {Promise<void>}
+   * @throws {Error} If file I/O fails, disk space is exhausted, or encryption bridge returns an error.
    *
    * @example
-   * await Cipher.crypto.encryptFile('./data.zip', './data.vault', 'secret-key');
+   * ```typescript
+   * import { Keys } from "xypriss-security";
+   *
+   * // Encrypt a database backup or archive
+   * await Keys.encryptFile(
+   *   "/var/backups/db.tar.gz",
+   *   "/var/backups/db.tar.gz.vault",
+   *   "VeryStrongMasterPassphrase",
+   *   { algorithm: "aes-256-gcm", keyDerivationIterations: 100000 }
+   * );
+   * ```
    */
   public static async encryptFile(
     inputPath: string,
@@ -226,24 +438,28 @@ export class Keys {
   }
 
   /**
-   * Decrypts a large file using PBKDF2 key derivation and a secure bridge.
+   * Decrypts a file previously encrypted with `Keys.encryptFile`.
    *
-   * @description
-   * This method extracts a 32-byte salt from the input file header, derives a 256-bit key
-   * (100,000 iterations), and performs decryption via temporary staging files to
-   * ensure data integrity. The final output is moved atomically.
+   * Automatically extracts the embedded 32-byte salt header, derives the symmetric key
+   * using PBKDF2 (100,000 rounds), authenticates and decrypts all chunks, and writes
+   * the output atomically.
    *
-   * @param {string} inputPath - Absolute path to the encrypted source file.
-   * @param {string} outputPath - Destination path for the decrypted plaintext.
-   * @param {string} key - The raw passphrase used for key derivation.
+   * @param inputPath - Absolute path to the encrypted source file.
+   * @param outputPath - Destination path for the decrypted plaintext file.
+   * @param key - The raw passphrase originally used for encryption.
    *
-   * @throws {Error} If the salt extraction fails or the decryption bridge returns an error.
-   * @throws {SystemError} If disk space is insufficient for temp files or if file moves fail.
-   *
-   * @returns {Promise<void>} Resolves once the file is successfully decrypted and moved to `outputPath`.
+   * @throws {Error} If authentication fails (tampering/wrong password) or file I/O fails.
    *
    * @example
-   * await Cipher.crypto.decryptFile('./vault.enc', './vault.txt', 'super-secret-key');
+   * ```typescript
+   * import { Keys } from "xypriss-security";
+   *
+   * await Keys.decryptFile(
+   *   "/var/backups/db.tar.gz.vault",
+   *   "/var/backups/db-restored.tar.gz",
+   *   "VeryStrongMasterPassphrase"
+   * );
+   * ```
    */
   public static async decryptFile(
     inputPath: string,
@@ -324,68 +540,90 @@ export class Keys {
   }
 }
 
-// =================================== UTILES ==========================
+// =================================== UTILITIES ==========================
 
 /**
- * Generates a high-entropy 4096-bit RSA key pair.
+ * Generates a high-entropy 4096-bit RSA asymmetric key pair.
  *
- * @returns A promise resolving to an object containing PEM-encoded publicKey and privateKey.
+ * @returns A promise resolving to an object containing PEM-formatted `publicKey` and `privateKey`.
+ * @see {@link Keys.generateRSAKeyPair}
  */
 export const generateRSAKeyPair = Keys.generateRSAKeyPair;
 
 /**
- * Signs data using RSA-PSS with SHA-256.
+ * Digitally signs arbitrary data using RSA-PSS with SHA-256.
  *
  * @param privateKey - The PEM-encoded RSA private key.
  * @param data - The data string to sign.
- * @returns A promise resolving to the hex-encoded signature.
+ * @returns A promise resolving to the signature as a hexadecimal string.
+ * @see {@link Keys.rsaSign}
  */
 export const rsaSign = Keys.rsaSign;
 
 /**
- * Verifies an RSA-PSS signature.
+ * Verifies an RSA-PSS signature against original data using the public key.
  *
  * @param publicKey - The PEM-encoded RSA public key.
  * @param data - The original data string that was signed.
- * @param signature - The hex-encoded signature to verify.
- * @returns A promise resolving to true if valid, false otherwise.
+ * @param signature - The hexadecimal signature string to verify.
+ * @returns A promise resolving to `true` if valid, `false` otherwise.
+ * @see {@link Keys.rsaVerify}
  */
 export const rsaVerify = Keys.rsaVerify;
 
 /**
  * Encrypts data using RSA-OAEP with SHA-256.
  *
- * @param publicKey - The PEM-encoded RSA public key.
+ * @param publicKey - The recipient's PEM-encoded RSA public key.
  * @param data - The plaintext data string to encrypt.
- * @returns A promise resolving to the hex-encoded ciphertext.
+ * @returns A promise resolving to the ciphertext in hex format.
+ * @see {@link Keys.rsaEncrypt}
  */
 export const rsaEncrypt = Keys.rsaEncrypt;
 
 /**
- * Decrypts data using RSA-OAEP with SHA-256.
+ * Decrypts RSA-OAEP ciphertext using the recipient's private key.
  *
  * @param privateKey - The PEM-encoded RSA private key.
  * @param encryptedHex - The hex-encoded ciphertext to decrypt.
  * @returns A promise resolving to the decrypted plaintext string.
+ * @see {@link Keys.rsaDecrypt}
  */
 export const rsaDecrypt = Keys.rsaDecrypt;
 
 /**
- * Verifies an Ed25519 signature.
+ * Verifies an Ed25519 digital signature.
  *
- * @param publicKey - Public key (hex or Uint8Array).
- * @param data - Original data.
- * @param signature - Signature (base64 or Uint8Array).
- * @returns True if valid.
+ * @param publicKey - The 32-byte Ed25519 public key (hex or `Uint8Array`).
+ * @param data - Original data (string or `Uint8Array`).
+ * @param signature - 64-byte Ed25519 signature (base64 or `Uint8Array`).
+ * @returns `true` if the signature is valid, `false` otherwise.
+ * @see {@link Keys.ed25519Verify}
  */
 export const ed25519Verify = Keys.ed25519Verify;
 
 /**
- * Derives a cryptographically strong key from an input secret.
- * Supports multiple algorithms including Argon2id, PBKDF2, and HKDF.
+ * Derives a cryptographically strong symmetric key from an input secret.
+ * Supports multiple algorithms including Scrypt, PBKDF2, HKDF, and Argon2id.
  *
- * @param input - The base secret or password.
- * @param options - Configuration for the derivation process.
+ * @param input - The base secret, password, or key material.
+ * @param options - Configuration options for the derivation process.
  * @returns A promise resolving to the derived key.
+ * @see {@link Keys.deriveKey}
  */
 export const deriveKey = Keys.deriveKey;
+
+/**
+ * Derives a raw cryptographic key of `keyLength` bytes using the Scrypt key derivation function.
+ * Direct equivalent to Node.js `crypto.scryptSync`.
+ *
+ * @param password - The password, PIN, or passphrase.
+ * @param salt - Cryptographic salt (string or `Uint8Array`).
+ * @param keyLength - Desired key length in bytes (default: `64`).
+ * @param cost - CPU/memory cost parameter $N$ (default: `16384`).
+ * @param r - Block size parameter (default: `8`).
+ * @param p - Parallelization parameter (default: `1`).
+ * @returns Derived key as a hexadecimal string.
+ * @see {@link Keys.scrypt}
+ */
+export const scrypt = Keys.scrypt;

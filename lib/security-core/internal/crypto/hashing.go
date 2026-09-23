@@ -118,6 +118,29 @@ func Blake2s256(data []byte) ([]byte, error) {
 	return h.Sum(nil), nil
 }
 
+// HashWithAlgo computes a digest using the specified algorithm.
+// Returns an error if the algorithm is unsupported instead of falling back.
+func HashWithAlgo(data []byte, algo string) ([]byte, error) {
+	switch strings.ToLower(algo) {
+	case "sha256", "sha-256":
+		return SHA256(data), nil
+	case "sha512", "sha-512":
+		return SHA512(data), nil
+	case "sha3-256", "sha3_256":
+		return SHA3_256(data), nil
+	case "sha3-512", "sha3_512":
+		return SHA3_512(data), nil
+	case "blake2b", "blake2b-256", "blake2b256":
+		return Blake2b256(data)
+	case "blake2b-512", "blake2b512":
+		return Blake2b512(data)
+	case "blake2s", "blake2s-256", "blake2s256":
+		return Blake2s256(data)
+	default:
+		return nil, fmt.Errorf("unsupported hash algorithm: %q", algo)
+	}
+}
+
 // ─── MAC / HMAC ──────────────────────────────────────────────────────────────
 
 // HMAC_SHA256 computes HMAC-SHA256 of data with key.
@@ -156,6 +179,21 @@ func Blake2bMAC(key, data []byte) ([]byte, error) {
 	}
 	h.Write(data)
 	return h.Sum(nil), nil
+}
+
+// HMACWithAlgo computes an HMAC using the specified algorithm.
+// Returns an error if the algorithm is unsupported instead of falling back.
+func HMACWithAlgo(key, data []byte, algo string) ([]byte, error) {
+	switch strings.ToLower(algo) {
+	case "sha256", "sha-256":
+		return HMAC_SHA256(key, data), nil
+	case "sha512", "sha-512":
+		return HMAC_SHA512(key, data), nil
+	case "blake2b", "blake2b-256", "blake2b256", "blake2b-mac":
+		return Blake2bMAC(key, data)
+	default:
+		return nil, fmt.Errorf("unsupported hmac algorithm: %q", algo)
+	}
 }
 
 // ─── Key Derivation Functions ────────────────────────────────────────────────
@@ -278,6 +316,23 @@ func DeriveKeyScrypt(password []byte, p ScryptParams) (key, salt []byte, err err
 	return key, salt, nil
 }
 
+// ScryptKey derives a raw key of keyLen bytes from password and salt using scrypt.
+func ScryptKey(password, salt []byte, n, r, p, keyLen int) ([]byte, error) {
+	if n <= 0 {
+		n = 16384
+	}
+	if r <= 0 {
+		r = 8
+	}
+	if p <= 0 {
+		p = 1
+	}
+	if keyLen <= 0 {
+		keyLen = 64
+	}
+	return scrypt.Key(password, salt, n, r, p, keyLen)
+}
+
 // VerifyScrypt verifies a password against a previously derived key and salt.
 func VerifyScrypt(password, storedKey, salt []byte, p ScryptParams) (bool, error) {
 	candidate, err := scrypt.Key(password, salt, p.N, p.R, p.P, p.KeyLen)
@@ -296,6 +351,19 @@ func PBKDF2SHA256(password, salt []byte, iterations, keyLen int) []byte {
 // PBKDF2SHA512 derives a key from a password using PBKDF2-HMAC-SHA512.
 func PBKDF2SHA512(password, salt []byte, iterations, keyLen int) []byte {
 	return pbkdf2.Key(password, salt, iterations, keyLen, sha512.New)
+}
+
+// PBKDF2WithAlgo derives a key using PBKDF2 with the specified hash algorithm.
+// Returns an error if the algorithm is unsupported instead of falling back.
+func PBKDF2WithAlgo(password, salt []byte, iterations, keyLen int, algo string) ([]byte, error) {
+	switch strings.ToLower(algo) {
+	case "sha256", "sha-256":
+		return PBKDF2SHA256(password, salt, iterations, keyLen), nil
+	case "sha512", "sha-512":
+		return PBKDF2SHA512(password, salt, iterations, keyLen), nil
+	default:
+		return nil, fmt.Errorf("unsupported pbkdf2 hash algorithm: %q", algo)
+	}
 }
 
 // HashPasswordBcrypt hashes a password using bcrypt at the given cost (default: 12).

@@ -19,6 +19,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdh"
+	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -29,6 +30,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/chacha20poly1305"
@@ -238,6 +240,21 @@ func DecryptXChaCha20Poly1305Package(pkg *EncryptedPackage, key, ad []byte) ([]b
 	return plaintext, nil
 }
 
+// DecryptXChaCha20Poly1305 decrypts and authenticates an XChaCha20-Poly1305 ciphertext.
+func DecryptXChaCha20Poly1305(ciphertext, key, nonce, tag, ad []byte) ([]byte, error) {
+	aead, err := chacha20poly1305.NewX(key)
+	if err != nil {
+		return nil, fmt.Errorf("XChaCha20-Poly1305: init: %w", err)
+	}
+
+	sealed := append(ciphertext, tag...)
+	plaintext, err := aead.Open(nil, nonce, sealed, ad)
+	if err != nil {
+		return nil, fmt.Errorf("XChaCha20-Poly1305: decryption/authentication failed: %w", err)
+	}
+	return plaintext, nil
+}
+
 // ─── AES-256-CTR (streaming, no auth – pair with HMAC) ───────────────────────
 
 // EncryptAESCTR encrypts with AES-256-CTR. WARNING: provides confidentiality only.
@@ -306,6 +323,14 @@ func RSASign(priv *rsa.PrivateKey, data []byte) ([]byte, error) {
 func RSAVerify(pub *rsa.PublicKey, data, sig []byte) error {
 	hashed := sha256.Sum256(data)
 	return rsa.VerifyPSS(pub, stdcrypto.SHA256, hashed[:], sig, nil)
+}
+
+// VerifyEd25519 verifies an Ed25519 signature.
+func VerifyEd25519(publicKey, data, sig []byte) bool {
+	if len(publicKey) != ed25519.PublicKeySize || len(sig) != ed25519.SignatureSize {
+		return false
+	}
+	return ed25519.Verify(publicKey, data, sig)
 }
 
 // RSAEncrypt encrypts data using RSA-OAEP with SHA-256.
@@ -388,7 +413,11 @@ func GenerateX25519KeyPair() (publicKey, privateKey [32]byte, err error) {
 	if _, err = io.ReadFull(rand.Reader, privateKey[:]); err != nil {
 		return
 	}
-	curve25519.ScalarBaseMult(&publicKey, &privateKey)
+	pub, err := curve25519.X25519(privateKey[:], curve25519.Basepoint)
+	if err != nil {
+		return publicKey, privateKey, fmt.Errorf("X25519 key generation: %w", err)
+	}
+	copy(publicKey[:], pub)
 	return
 }
 
@@ -396,12 +425,11 @@ func GenerateX25519KeyPair() (publicKey, privateKey [32]byte, err error) {
 // The result should be passed through HKDF before use as a symmetric key.
 func DeriveSharedSecretX25519(privateKey, peerPublicKey [32]byte) ([32]byte, error) {
 	var shared [32]byte
-	curve25519.ScalarMult(&shared, &privateKey, &peerPublicKey)
-	// All-zero output indicates an invalid peer key (small-order point).
-	var zero [32]byte
-	if shared == zero {
-		return zero, errors.New("X25519: invalid peer public key (small-order point)")
+	secret, err := curve25519.X25519(privateKey[:], peerPublicKey[:])
+	if err != nil {
+		return shared, fmt.Errorf("X25519: %w", err)
 	}
+	copy(shared[:], secret)
 	return shared, nil
 }
 
@@ -450,6 +478,21 @@ func Encrypt(plaintext, key, ad []byte) (*EncryptedPackage, error) {
 	return EncryptXChaCha20Poly1305(plaintext, key, ad)
 }
 
+// EncryptWithAlgo encrypts plaintext using the specified algorithm ("aes", "chacha20", "xchacha20").
+// Returns an error if the algorithm is unsupported instead of falling back.
+func EncryptWithAlgo(plaintext, key, ad []byte, algo string) (*EncryptedPackage, error) {
+	switch strings.ToLower(algo) {
+	case "aes", "aes-gcm", "aes-256-gcm":
+		return EncryptAESGCM(plaintext, key, ad)
+	case "chacha20", "chacha20-poly1305":
+		return EncryptChaCha20Poly1305(plaintext, key, ad)
+	case "xchacha20", "xchacha20-poly1305":
+		return EncryptXChaCha20Poly1305(plaintext, key, ad)
+	default:
+		return nil, fmt.Errorf("unsupported encryption algorithm: %q", algo)
+	}
+}
+
 // Decrypt is the counterpart to Encrypt – dispatches based on pkg.Algorithm.
 func Decrypt(pkg *EncryptedPackage, key, ad []byte) ([]byte, error) {
 	if pkg == nil {
@@ -460,10 +503,25 @@ func Decrypt(pkg *EncryptedPackage, key, ad []byte) ([]byte, error) {
 		return DecryptAESGCMPackage(pkg, key, ad)
 	case "ChaCha20-Poly1305":
 		return DecryptChaCha20Poly1305Package(pkg, key, ad)
-	case "XChaCha20-Poly1305", "":
+	case "XChaCha20-Poly1305":
 		return DecryptXChaCha20Poly1305Package(pkg, key, ad)
 	default:
 		return nil, fmt.Errorf("decrypt: unsupported algorithm %q", pkg.Algorithm)
+	}
+}
+
+// DecryptWithAlgo decrypts ciphertext using the specified algorithm ("aes", "chacha20", "xchacha20").
+// Returns an error if the algorithm is unsupported instead of falling back.
+func DecryptWithAlgo(ciphertext, key, nonce, tag, ad []byte, algo string) ([]byte, error) {
+	switch strings.ToLower(algo) {
+	case "aes", "aes-gcm", "aes-256-gcm":
+		return DecryptAESGCM(ciphertext, key, nonce, tag, ad)
+	case "chacha20", "chacha20-poly1305":
+		return DecryptChaCha20Poly1305(ciphertext, key, nonce, tag, ad)
+	case "xchacha20", "xchacha20-poly1305":
+		return DecryptXChaCha20Poly1305(ciphertext, key, nonce, tag, ad)
+	default:
+		return nil, fmt.Errorf("unsupported decryption algorithm: %q", algo)
 	}
 }
 
@@ -541,30 +599,32 @@ func EncryptFile(inputPath, outputPath string, key []byte, algo string) error {
 	}
 	defer outFile.Close()
 
-	// 1. Write Header
-	// Magic (4) + Version (1) + Algo (1) + Reserved (2)
+	// 1. Setup Cipher & Write Header
+	var aead cipher.AEAD
 	header := make([]byte, 8)
 	copy(header[0:4], FileMagic)
 	header[4] = FileVersion
-	if algo == "chacha20" {
-		header[5] = 2
-	} else {
-		header[5] = 1 // AES-GCM
-	}
-	if _, err := outFile.Write(header); err != nil {
-		return fmt.Errorf("write header: %w", err)
-	}
 
-	// 2. Setup Cipher
-	var aead cipher.AEAD
-	if algo == "chacha20" {
+	switch strings.ToLower(algo) {
+	case "chacha20", "chacha20-poly1305":
+		header[5] = 2
 		aead, err = chacha20poly1305.New(key)
-	} else {
-		block, _ := aes.NewCipher(key)
+	case "aes", "aes-gcm", "aes-256-gcm":
+		header[5] = 1
+		block, bErr := aes.NewCipher(key)
+		if bErr != nil {
+			return fmt.Errorf("cipher init: %w", bErr)
+		}
 		aead, err = cipher.NewGCM(block)
+	default:
+		return fmt.Errorf("EncryptFile: unsupported algorithm %q", algo)
 	}
 	if err != nil {
 		return fmt.Errorf("cipher init: %w", err)
+	}
+
+	if _, err := outFile.Write(header); err != nil {
+		return fmt.Errorf("write header: %w", err)
 	}
 
 	nonceSize := aead.NonceSize()
@@ -625,18 +685,18 @@ func DecryptFile(inputPath, outputPath string, key []byte) error {
 		return errors.New("invalid file magic")
 	}
 	algoCode := header[5]
-	algo := "aes"
-	if algoCode == 2 {
-		algo = "chacha20"
-	}
-
-	// 2. Setup Cipher
 	var aead cipher.AEAD
-	if algo == "chacha20" {
-		aead, err = chacha20poly1305.New(key)
-	} else {
-		block, _ := aes.NewCipher(key)
+	switch algoCode {
+	case 1:
+		block, bErr := aes.NewCipher(key)
+		if bErr != nil {
+			return fmt.Errorf("cipher init: %w", bErr)
+		}
 		aead, err = cipher.NewGCM(block)
+	case 2:
+		aead, err = chacha20poly1305.New(key)
+	default:
+		return fmt.Errorf("DecryptFile: unsupported algorithm code %d", algoCode)
 	}
 	if err != nil {
 		return fmt.Errorf("cipher init: %w", err)

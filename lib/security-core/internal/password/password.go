@@ -18,6 +18,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -101,17 +102,62 @@ func HashPBKDF2(password string, iterations int) (string, error) {
 	return wrapWithXyPriss("pbkdf2", params, b64Salt, b64Hash), nil
 }
 
+// HashPassword hashes a password using the specified algorithm (argon2id, scrypt, pbkdf2).
+// Returns an error if the algorithm is unsupported instead of falling back.
+func HashPassword(password, algo string, iterations, memory, parallelism int) (string, error) {
+	switch strings.ToLower(algo) {
+	case "argon2id":
+		params := DefaultArgon2
+		if iterations > 0 {
+			params.Time = uint32(iterations)
+		}
+		if memory > 0 {
+			params.Memory = uint32(memory)
+		}
+		if parallelism > 0 {
+			params.Threads = uint8(parallelism)
+		}
+
+		salt := make([]byte, 16)
+		if _, err := rand.Read(salt); err != nil {
+			return "", fmt.Errorf("argon2id: salt generation: %w", err)
+		}
+
+		hash := argon2.IDKey([]byte(password), salt, params.Time, params.Memory, params.Threads, params.KeyLen)
+		b64Salt := base64.RawStdEncoding.EncodeToString(salt)
+		b64Hash := base64.RawStdEncoding.EncodeToString(hash)
+		pStr := fmt.Sprintf("v=%d,m=%d,t=%d,p=%d", argon2.Version, params.Memory, params.Time, params.Threads)
+		return wrapWithXyPriss("argon2id", pStr, b64Salt, b64Hash), nil
+
+	case "scrypt":
+		return HashScrypt(password)
+
+	case "pbkdf2":
+		return HashPBKDF2(password, iterations)
+
+	default:
+		return "", fmt.Errorf("unsupported password hashing algorithm: %q", algo)
+	}
+}
+
 // Verify checks a password against a signed XyPriss hash.
 func Verify(password, encodedHash string) bool {
+	ok, _ := VerifyWithErr(password, encodedHash)
+	return ok
+}
+
+// VerifyWithErr checks a password against a signed XyPriss hash and returns an error
+// if the hash format or algorithm is invalid or unsupported.
+func VerifyWithErr(password, encodedHash string) (bool, error) {
 	if !strings.HasPrefix(encodedHash, XyPrissSignature) {
-		return false // Mandatory signature check
+		return false, errors.New("invalid hash signature")
 	}
 
 	// Remove signature for processing
 	raw := encodedHash[len(XyPrissSignature):]
 	parts := strings.Split(raw, "$")
 	if len(parts) < 4 {
-		return false
+		return false, errors.New("invalid hash format: missing fields")
 	}
 
 	algo := parts[0]
@@ -119,11 +165,17 @@ func Verify(password, encodedHash string) bool {
 	saltB64 := parts[2]
 	hashB64 := parts[3]
 
-	salt, _ := base64.RawStdEncoding.DecodeString(saltB64)
-	decodedHash, _ := base64.RawStdEncoding.DecodeString(hashB64)
+	salt, err := base64.RawStdEncoding.DecodeString(saltB64)
+	if err != nil {
+		return false, fmt.Errorf("decode salt: %w", err)
+	}
+	decodedHash, err := base64.RawStdEncoding.DecodeString(hashB64)
+	if err != nil {
+		return false, fmt.Errorf("decode hash: %w", err)
+	}
 
 	var comparisonHash []byte
-	switch algo {
+	switch strings.ToLower(algo) {
 	case "argon2id":
 		var m, t uint32
 		var p uint8
@@ -149,16 +201,21 @@ func Verify(password, encodedHash string) bool {
 		}
 		comparisonHash = argon2.IDKey([]byte(password), salt, t, m, p, uint32(len(decodedHash)))
 	case "scrypt":
-		comparisonHash, _ = scrypt.Key([]byte(password), salt, 32768, 8, 1, 32)
+		comparisonHash, err = scrypt.Key([]byte(password), salt, 32768, 8, 1, 32)
+		if err != nil {
+			return false, fmt.Errorf("scrypt derivation failed: %w", err)
+		}
 	case "pbkdf2":
 		it := 100000
 		if strings.HasPrefix(params, "i=") {
 			fmt.Sscanf(params, "i=%d", &it)
 		}
 		comparisonHash = pbkdf2.Key([]byte(password), salt, it, 32, sha256.New)
+	default:
+		return false, fmt.Errorf("unsupported hash algorithm: %q", algo)
 	}
 
-	return constantTimeCompare(decodedHash, comparisonHash)
+	return constantTimeCompare(decodedHash, comparisonHash), nil
 }
 
 // IsHashed checks if a string is a valid XyPriss hash.
@@ -176,7 +233,7 @@ func IsHashedWithAlgo(encodedHash string, expectedAlgo string) bool {
 	if len(parts) < 1 {
 		return false
 	}
-	return parts[0] == expectedAlgo
+	return strings.EqualFold(parts[0], expectedAlgo)
 }
 
 func constantTimeCompare(a, b []byte) bool {

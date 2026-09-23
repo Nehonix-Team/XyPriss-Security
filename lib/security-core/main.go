@@ -28,7 +28,6 @@ import (
 	"github.com/nehonix/xypriss-security-core/internal/password"
 	"github.com/nehonix/xypriss-security-core/internal/quantum/kyber"
 	"github.com/nehonix/xypriss-security-core/internal/quantum/lwe"
-	"golang.org/x/crypto/argon2"
 )
 
 /**
@@ -75,36 +74,7 @@ func main() {
 		memory, _ := strconv.Atoi(args[3])
 		parallelism, _ := strconv.Atoi(args[4])
 
-		var hash string
-		var err error
-		switch algo {
-		case "scrypt":
-			hash, err = password.HashScrypt(pass)
-		case "pbkdf2":
-			hash, err = password.HashPBKDF2(pass, iterations)
-		case "argon2id":
-			params := password.DefaultArgon2
-			if iterations > 0 {
-				params.Time = uint32(iterations)
-			}
-			if memory > 0 {
-				params.Memory = uint32(memory)
-			}
-			if parallelism > 0 {
-				params.Threads = uint8(parallelism)
-			}
-
-			salt, _ := crypto.RandomBytes(16)
-			h := argon2.IDKey([]byte(pass), salt, params.Time, params.Memory, params.Threads, params.KeyLen)
-
-			b64Salt := base64.RawStdEncoding.EncodeToString(salt)
-			b64Hash := base64.RawStdEncoding.EncodeToString(h)
-			pStr := fmt.Sprintf("v=%d,m=%d,t=%d,p=%d", argon2.Version, params.Memory, params.Time, params.Threads)
-			hash = fmt.Sprintf("$xypriss$argon2id$%s$%s$%s", pStr, b64Salt, b64Hash)
-		default:
-			hash, err = password.HashArgon2id(pass)
-		}
-
+		hash, err := password.HashPassword(pass, algo, iterations, memory, parallelism)
 		if err != nil {
 			errorExit(err.Error())
 		}
@@ -188,19 +158,8 @@ func main() {
 			errorExit("missing arguments for get-hash")
 		}
 		data := resolveData(0)
-		algo := strings.ToLower(args[1])
-		var h []byte
-		var err error
-		switch algo {
-		case "sha512":
-			h = crypto.SHA512(data)
-		case "sha3-256":
-			h = crypto.SHA3_256(data)
-		case "blake2b":
-			h, err = crypto.Blake2b256(data)
-		default:
-			h = crypto.SHA256(data)
-		}
+		algo := args[1]
+		h, err := crypto.HashWithAlgo(data, algo)
 		if err != nil {
 			errorExit(err.Error())
 		}
@@ -219,17 +178,8 @@ func main() {
 		}
 		key, _ := hex.DecodeString(args[0])
 		data := resolveData(1)
-		algo := strings.ToLower(args[2])
-		var h []byte
-		var err error
-		switch algo {
-		case "sha512":
-			h = crypto.HMAC_SHA512(key, data)
-		case "blake2b":
-			h, err = crypto.Blake2bMAC(key, data)
-		default:
-			h = crypto.HMAC_SHA256(key, data)
-		}
+		algo := args[2]
+		h, err := crypto.HMACWithAlgo(key, data, algo)
 		if err != nil {
 			errorExit(err.Error())
 		}
@@ -262,14 +212,33 @@ func main() {
 		salt, _ := hex.DecodeString(args[1])
 		iterations, _ := strconv.Atoi(args[2])
 		keyLen, _ := strconv.Atoi(args[3])
-		algo := strings.ToLower(args[4])
-		var h []byte
-		if algo == "sha512" {
-			h = crypto.PBKDF2SHA512(pass, salt, iterations, keyLen)
-		} else {
-			h = crypto.PBKDF2SHA256(pass, salt, iterations, keyLen)
+		algo := args[4]
+		h, err := crypto.PBKDF2WithAlgo(pass, salt, iterations, keyLen, algo)
+		if err != nil {
+			errorExit(err.Error())
 		}
 		fmt.Print(hex.EncodeToString(h))
+
+	case "scrypt":
+		if len(args) < 6 {
+			errorExit("missing arguments for scrypt")
+		}
+		var pass []byte
+		if args[0] == "-" {
+			pass, _ = io.ReadAll(os.Stdin)
+		} else {
+			pass = []byte(args[0])
+		}
+		salt, _ := hex.DecodeString(args[1])
+		cost, _ := strconv.Atoi(args[2])
+		r, _ := strconv.Atoi(args[3])
+		p, _ := strconv.Atoi(args[4])
+		keyLen, _ := strconv.Atoi(args[5])
+		k, err := crypto.ScryptKey(pass, salt, cost, r, p, keyLen)
+		if err != nil {
+			errorExit(err.Error())
+		}
+		fmt.Print(hex.EncodeToString(k))
 
 	case "constant-time-compare":
 		if len(args) < 2 {
@@ -287,16 +256,10 @@ func main() {
 		if len(args) < 3 {
 			errorExit("missing arguments for encrypt")
 		}
-		plaintext := []byte(args[0]) // encrypt usually used for passwords/short strings in bridge.ts
+		plaintext := []byte(args[0])
 		key, _ := hex.DecodeString(args[1])
 		algo := args[2]
-		var pkg *crypto.EncryptedPackage
-		var err error
-		if algo == "chacha20" {
-			pkg, err = crypto.EncryptChaCha20Poly1305(plaintext, key, nil)
-		} else {
-			pkg, err = crypto.EncryptAESGCM(plaintext, key, nil)
-		}
+		pkg, err := crypto.EncryptWithAlgo(plaintext, key, nil, algo)
 		if err != nil {
 			errorExit(err.Error())
 		}
@@ -315,13 +278,7 @@ func main() {
 		nonce, _ := hex.DecodeString(parts[0])
 		tag, _ := hex.DecodeString(parts[1])
 		data, _ := hex.DecodeString(parts[2])
-		var dec []byte
-		var err error
-		if algo == "chacha20" {
-			dec, err = crypto.DecryptChaCha20Poly1305(data, key, nonce, tag, nil)
-		} else {
-			dec, err = crypto.DecryptAESGCM(data, key, nonce, tag, nil)
-		}
+		dec, err := crypto.DecryptWithAlgo(data, key, nonce, tag, nil, algo)
 		if err != nil {
 			errorExit(err.Error())
 		}
@@ -334,13 +291,7 @@ func main() {
 		data := resolveData(0)
 		key, _ := hex.DecodeString(args[1])
 		algo := args[2]
-		var pkg *crypto.EncryptedPackage
-		var err error
-		if algo == "chacha20" {
-			pkg, err = crypto.EncryptChaCha20Poly1305(data, key, nil)
-		} else {
-			pkg, err = crypto.EncryptAESGCM(data, key, nil)
-		}
+		pkg, err := crypto.EncryptWithAlgo(data, key, nil, algo)
 		if err != nil {
 			errorExit(err.Error())
 		}
@@ -359,13 +310,7 @@ func main() {
 		nonce, _ := hex.DecodeString(parts[0])
 		tag, _ := hex.DecodeString(parts[1])
 		data, _ := hex.DecodeString(parts[2])
-		var dec []byte
-		var err error
-		if algo == "chacha20" {
-			dec, err = crypto.DecryptChaCha20Poly1305(data, key, nonce, tag, nil)
-		} else {
-			dec, err = crypto.DecryptAESGCM(data, key, nonce, tag, nil)
-		}
+		dec, err := crypto.DecryptWithAlgo(data, key, nonce, tag, nil, algo)
 		if err != nil {
 			errorExit(err.Error())
 		}
