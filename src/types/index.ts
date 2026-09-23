@@ -26,12 +26,23 @@ export enum SecurityLevel {
  */
 export type HashAlgorithm =
   | "sha256"
+  | "sha-256"
   | "sha512"
+  | "sha-512"
   | "sha3-256"
+  | "sha3-512"
   | "blake2b"
+  | "blake2b-256"
+  | "blake2b-512"
+  | "blake2s"
+  | "blake2s-256"
   | "pbkdf2"
   | "argon2id"
-  | "scrypt";
+  | "scrypt"
+  | "SHA-256"
+  | "SHA-512"
+  | "SHA256"
+  | "SHA512";
 
 /**
  * Supported output formats for cryptographic results.
@@ -41,7 +52,28 @@ export type HashOutputFormat = "hex" | "base64" | "buffer" | "uint8array";
 /**
  * Supported HMAC algorithms.
  */
-export type HMACAlgorithm = "sha256" | "sha512" | "SHA-256" | "SHA-512";
+export type HMACAlgorithm =
+  | "sha256"
+  | "sha-256"
+  | "sha512"
+  | "sha-512"
+  | "sha3-256"
+  | "sha3-512"
+  | "blake2b"
+  | "blake2b-256"
+  | "blake2b-512"
+  | "SHA-256"
+  | "SHA-512";
+
+/**
+ * Supported algorithms for password hashing and verification.
+ */
+export type PasswordAlgorithm = "argon2id" | "scrypt" | "pbkdf2";
+
+/**
+ * Supported key derivation algorithms.
+ */
+export type KDFAlgorithm = "argon2id" | "scrypt" | "pbkdf2" | "hkdf";
 
 /**
  * Base encoding types for data conversion.
@@ -56,9 +88,9 @@ export type BaseEncodingType = "hex" | "base64" | "base32"
  */
 export interface HashOptions {
   /** The hashing algorithm to utilize. Defaults to 'sha256'. */
-  algorithm?: HashAlgorithm | string;
-  /** The desired output format of the hash (hex, base64, buffer). */
-  outputFormat?: HashOutputFormat | string;
+  algorithm?: HashAlgorithm;
+  /** The desired output format of the hash (hex, base64, buffer, uint8array). */
+  outputFormat?: HashOutputFormat;
   /** The number of iterations for the hashing process (relevant for KDFs like PBKDF2). */
   iterations?: number;
   /** An optional salt to add entropy to the hash. */
@@ -66,7 +98,7 @@ export interface HashOptions {
   /** Desired length of the output in bytes (relevant for PBKDF2). */
   keyLength?: number;
   /** Internal digest algorithm (relevant for PBKDF2). */
-  digest?: HashAlgorithm | string;
+  digest?: HashAlgorithm;
 }
 
 /**
@@ -101,7 +133,7 @@ export interface KeyDerivationOptions {
    * The derivation algorithm to utilize.
    * Defaults to 'argon2id'.
    */
-  algorithm?: "pbkdf2" | "argon2id" | "scrypt" | "hkdf" | string;
+  algorithm?: KDFAlgorithm;
   /**
    * Number of iterations or rounds for the hashing process.
    * High iteration counts increase resistance to brute-force attacks.
@@ -125,7 +157,7 @@ export interface KeyDerivationOptions {
   /**
    * Digest algorithm to be used with the KDF (e.g., 'sha256', 'sha512').
    */
-  digest?: HashAlgorithm | string;
+  digest?: HashAlgorithm;
   /**
    * Memory cost parameter for memory-hard algorithms like Argon2id.
    * Represents the memory usage in Kilobytes.
@@ -150,7 +182,7 @@ export interface HMACOptions extends HashOptions {
   /** The secret key for the HMAC. */
   key: string | Uint8Array;
   /** The algorithm to use for the HMAC. */
-  algorithm?: HMACAlgorithm | string;
+  algorithm?: HMACAlgorithm;
 }
 
 /**
@@ -158,7 +190,7 @@ export interface HMACOptions extends HashOptions {
  */
 export interface PBKDF2Options extends KeyDerivationOptions {
   /** The digest function used for HMAC in PBKDF2. */
-  digest?: HashAlgorithm | string;
+  digest?: HashAlgorithm;
 }
 
 /**
@@ -168,7 +200,7 @@ export interface PasswordHashOptions extends KeyDerivationOptions {
   /** A secret pepper value applied before hashing. */
   pepper?: string;
   /** The specific algorithm for password hashing. */
-  algorithm?: "argon2id" | "scrypt" | "pbkdf2" | string;
+  algorithm?: PasswordAlgorithm;
 }
 
 /**

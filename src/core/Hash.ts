@@ -101,7 +101,7 @@ export class Hash {
   public static hmac(
     key: string | Uint8Array,
     data: string | Uint8Array,
-    algo: string = "sha256",
+    algo: HMACAlgorithm = "sha256",
   ): string {
     const res = Bridge.hmac(key, data, algo);
     if (res.startsWith("error:")) throw new Error(res);
@@ -109,24 +109,46 @@ export class Hash {
   }
 
   /**
-   * Compares two buffers in constant time to prevent timing attacks.
+   * Compares two buffers or strings in constant time to prevent timing side-channel attacks.
+   * Direct equivalent to Node.js `crypto.timingSafeEqual`.
    *
-   * @param a - First buffer to compare.
-   * @param b - Second buffer to compare.
-   * @returns True if buffers are equal, false otherwise.
+   * @param a - First buffer or string to compare.
+   * @param b - Second buffer or string to compare.
+   * @returns True if both values are strictly equal, false otherwise.
+   *
+   * @example
+   * ```typescript
+   * // Comparing hex strings directly
+   * const isMatch = Hash.timingSafeEqual(storedHashHex, calculatedHashHex);
+   *
+   * // Comparing Buffers / Uint8Arrays
+   * const isBufMatch = Hash.timingSafeEqual(Buffer.from(key, "hex"), Buffer.from(hash, "hex"));
+   * ```
    */
-  public static timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
-    return Bridge.constantTimeCompare(a, b);
+  public static timingSafeEqual(
+    a: string | Uint8Array,
+    b: string | Uint8Array,
+  ): boolean {
+    const bufA = typeof a === "string" ? Buffer.from(a) : a;
+    const bufB = typeof b === "string" ? Buffer.from(b) : b;
+    return Bridge.constantTimeCompare(bufA, bufB);
   }
 
   /**
    * Legacy alias for hmac with proper typing.
    */
   public static createSecureHMAC(
-    algo: HMACAlgorithm | string,
+    algo: HMACAlgorithm,
     key: string | Uint8Array,
     data: string | Uint8Array,
   ): string {
     return this.hmac(key, data, algo);
   }
 }
+
+/**
+ * Compares two buffers or strings in constant time to prevent timing attacks.
+ * Direct replacement for Node.js `crypto.timingSafeEqual`.
+ */
+export const timingSafeEqual = Hash.timingSafeEqual;
+

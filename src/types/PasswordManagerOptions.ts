@@ -1,6 +1,6 @@
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-import { PasswordHashOptions } from ".";
+import { PasswordHashOptions, PasswordAlgorithm } from ".";
 
 /**
  * Constructor options for `PasswordManager`.
@@ -11,7 +11,7 @@ export interface PasswordManagerOptions extends PasswordHashOptions {
    * Hashing algorithm to use.
    * @default "argon2id"
    */
-  algorithm?: "argon2id" | "scrypt" | "pbkdf2" | string;
+  algorithm?: PasswordAlgorithm;
 
   /**
    * Memory cost in KiB (Argon2id).

@@ -25,6 +25,7 @@ import type {
   PasswordStrengthResult,
   PasswordStrengthOptions,
 } from "../types/PasswordManagerOptions";
+import type { PasswordAlgorithm } from "../types";
 
 const DEFAULT_STRENGTH_OPTIONS: PasswordStrengthOptions = {
   minLength: 8,
@@ -72,7 +73,7 @@ const DEFAULT_STRENGTH_OPTIONS: PasswordStrengthOptions = {
  * const stale      = passwords.needsRehash(storedHash);
  */
 export class PasswordManager {
-  private readonly algo: string;
+  private readonly algo: PasswordAlgorithm;
   private readonly memoryCost: number;
   private readonly iterations: number;
   private readonly parallelism: number;
@@ -86,7 +87,7 @@ export class PasswordManager {
   private passphraseWordlistCache: Map<string, readonly string[]> = new Map();
 
   constructor(options: PasswordManagerOptions = {}) {
-    this.algo = (options.algorithm ?? "argon2id").toLowerCase();
+    this.algo = ((options.algorithm ?? "argon2id").toLowerCase() as PasswordAlgorithm);
     this.memoryCost = options.memoryCost ?? 65536; // 64 MiB
     this.iterations = options.iterations ?? 3;
     this.parallelism = options.parallelism ?? 4;

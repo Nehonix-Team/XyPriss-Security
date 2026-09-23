@@ -143,7 +143,10 @@ export class Keys {
     }
 
     // Default to Argon2id via Password module
-    return Password.hash(strInput, options);
+    return Password.hash(strInput, {
+      ...options,
+      algorithm: (options.algorithm as "argon2id" | "scrypt" | "pbkdf2") || "argon2id",
+    });
   }
 
   /**
