@@ -59,7 +59,7 @@ const DEFAULT_STRENGTH_OPTIONS: PasswordStrengthOptions = {
  *   memoryCost: 65536,
  *   parallelism: 4,
  *   iterations: 3,
- *   pepper: process.env.PASSWORD_PEPPER,
+ *   pepper: globalThis.__sys__?.__env__?.get("PASSWORD_PEPPER") ?? process.env.PASSWORD_PEPPER,
  * });
  *
  * // anywhere in the app:

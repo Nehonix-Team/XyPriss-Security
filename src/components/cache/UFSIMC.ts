@@ -21,6 +21,7 @@ import type {
   UltraMemoryCacheEntry,
 } from "./types/UFSIMC.type";
 import { Logger } from "../../shared/logger";
+import { getEnv } from "../../utils/env";
 
 /**
  * Ultra-Fast Secure In-Memory Cache (UFSIMC)
@@ -117,7 +118,7 @@ class UFSIMC extends EventEmitter {
 
     this.hotnessDecayTimer = setInterval(() => {
       this.decayHotness();
-    }, 60000); // Every minute
+    }, 60000); // Every minu  te
   }
 
   /**
@@ -125,22 +126,26 @@ class UFSIMC extends EventEmitter {
    */
   private initializeEncryption(): void {
     try {
-      if (process.env.ENC_SECRET_KEY) {
+      const secretKey = getEnv("ENC_SECRET_KEY");
+      const secretSeed = getEnv("ENC_SECRET_SEED");
+      const secretSalt = getEnv("ENC_SECRET_SALT");
+
+      if (secretKey) {
         this.encryptionKey = Buffer.from(
-          process.env.ENC_SECRET_KEY,
+          secretKey,
           CONFIG.ENCODING,
         );
-      } else if (process.env.ENC_SECRET_SEED && process.env.ENC_SECRET_SALT) {
-        const itSalt = process.env.ENC_SECRET_SALT;
-        let ck = process.env.ENC_SECRET_SEED;
+      } else if (secretSeed && secretSalt) {
+        const itSalt = secretSalt;
+        let ck = secretSeed;
         for (let i = 0; i < CONFIG.KEY_ITERATIONS; i++) {
           ck = Hash.hmac(ck, itSalt);
         }
         this.encryptionKey = Buffer.from(ck.substring(0, 64), "hex");
       } else {
         const isSilent =
-          process.env.XYPRISS_SEC_WARNINGS === "silent" ||
-          process.env.XYPRISS_ENV_SHIELD === "silent";
+          getEnv("XYPRISS_SEC_WARNINGS") === "silent" ||
+          getEnv("XYPRISS_ENV_SHIELD") === "silent";
 
         if (!isSilent) {
           const warningMsg =
@@ -179,7 +184,7 @@ class UFSIMC extends EventEmitter {
     // Use cached hash if available
     let hashedKey = this.keyHashMap.get(key);
     if (!hashedKey) {
-      const salt = process.env.ENC_SECRET_SALT || "default-salt";
+      const salt = getEnv("ENC_SECRET_SALT") || "default-salt";
       let ck = key;
       for (let i = 0; i < 1000; i++) {
         ck = Hash.hmac(ck, salt);

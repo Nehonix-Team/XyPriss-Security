@@ -686,6 +686,32 @@ const bytes = Utils.getRandomBytes(16);
 const hex = Utils.hash("test");
 ```
 
+### Environment Security & Whitelisting (`getEnv`, `getEnvStrict`)
+
+XyPriss Security provides `getEnv(key)` and `getEnvStrict(key)` to resolve environment variables via the official `globalThis.__sys__.__env__` API when running inside XyPriss, falling back to `process.env` in standalone environments.
+
+Under XyPriss's **libXESS Environment Shield**, packages in `node_modules` cannot inspect environment variables unless explicitly whitelisted in `xypriss.config.jsonc` (or `xypriss.config.json`):
+
+```jsonc
+{
+  "$env": {
+    "packages": {
+      "xypriss-security": {
+        "whitelist": [
+          "ENC_SECRET_KEY",
+          "ENC_SECRET_SEED",
+          "ENC_SECRET_SALT",
+          "XYPRISS_SEC_WARNINGS"
+        ],
+        "inheritGlobal": false
+      }
+    }
+  }
+}
+```
+
+For more details, see the official [XyPriss Environment Security Shield Documentation](https://xypriss.nehonix.com/docs/security/environment-shield).
+
 ---
 
 ## Type Reference

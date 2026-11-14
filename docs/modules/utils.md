@@ -9,6 +9,7 @@ Foundational helpers for encoding, decoding, byte manipulation, RSA cryptography
 - [RSA Cryptography](#rsa-cryptography)
 - [Byte Length Utilities](#byte-length-utilities)
 - [Key Derivation](#key-derivation)
+- [Environment Security & Whitelisting](#environment-security--whitelisting)
 
 ---
 
@@ -194,3 +195,73 @@ const key = await deriveKey("my-secret", {
   salt: "unique-salt",
 });
 ```
+
+---
+
+## Environment Security & Whitelisting
+
+XyPriss Security integrates with the XyPriss **libXESS Environment Shield** to guarantee Zero-Trust secret isolation. Under XyPriss, direct accesses to `process.env` from third-party packages in `node_modules` are strictly intercepted to prevent memory leaks and supply chain exfiltration.
+
+The module provides `getEnv` and `getEnvStrict` to query `globalThis.__sys__.__env__` safely.
+
+### getEnv(key)
+
+Safely resolves an environment variable. Queries `__sys__.__env__.get(key)` first when running inside XyPriss, and falls back to `process.env[key]` outside XyPriss.
+
+**Parameters:**
+
+- `key`: `string` - Environment variable name.
+
+**Returns:** `string | undefined`
+
+### getEnvStrict(key)
+
+Retrieves a mandatory environment variable. Throws an error if undefined or missing.
+
+**Parameters:**
+
+- `key`: `string` - Environment variable name.
+
+**Returns:** `string`
+
+### Declaring Environment Whitelists in XyPriss
+
+According to the [XyPriss Environment Security Shield Documentation](https://xypriss.nehonix.com/docs/security/environment-shield), packages in `node_modules` cannot read custom environment variables unless explicitly whitelisted by the host application in `xypriss.config.jsonc` (or `xypriss.config.json`).
+
+To authorize `xypriss-security` to read encryption keys and internal flags (`ENC_SECRET_KEY`, `ENC_SECRET_SEED`, `ENC_SECRET_SALT`, `XYPRISS_SEC_WARNINGS`), configure your application's `xypriss.config.jsonc`:
+
+```jsonc
+{
+  "$env": {
+    "packages": {
+      // Dedicated sandbox whitelist for xypriss-security:
+      "xypriss-security": {
+        "whitelist": [
+          "ENC_SECRET_KEY",
+          "ENC_SECRET_SEED",
+          "ENC_SECRET_SALT",
+          "XYPRISS_SEC_WARNINGS"
+        ],
+        "inheritGlobal": false
+      }
+    }
+  }
+}
+```
+
+Or via global whitelist:
+
+```jsonc
+{
+  "$env": {
+    "whitelist": [
+      "ENC_SECRET_KEY",
+      "ENC_SECRET_SEED",
+      "ENC_SECRET_SALT",
+      "XYPRISS_SEC_WARNINGS"
+    ]
+  }
+}
+```
+
+For more details on package sandboxing, inheritance, and strict whitelisting, refer to the official [XyPriss Environment Security Shield Documentation](https://xypriss.nehonix.com/docs/security/environment-shield).

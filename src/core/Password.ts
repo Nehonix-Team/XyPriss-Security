@@ -73,7 +73,7 @@ export class Password {
    *
    * // Using an application-level pepper
    * const pepperedHash = await Password.hash("UserPassword", {
-   *   pepper: process.env.APP_PEPPER,
+   *   pepper: globalThis.__sys__?.__env__?.get("APP_PEPPER") ?? process.env.APP_PEPPER,
    * });
    * ```
    */
@@ -122,7 +122,7 @@ export class Password {
    *
    * // Verification with application pepper
    * const isPepperMatch = await Password.verify("candidatePass", storedHash, {
-   *   pepper: process.env.APP_PEPPER,
+   *   pepper: globalThis.__sys__?.__env__?.get("APP_PEPPER") ?? process.env.APP_PEPPER,
    * });
    * ```
    */

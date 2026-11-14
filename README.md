@@ -178,6 +178,32 @@ await Cache.set(
 const session = await Cache.get("session:88");
 ```
 
+### XyPriss libXESS Environment Shield Configuration
+
+Under the XyPriss Zero-Trust runtime architecture, third-party packages in `node_modules` cannot directly inspect `process.env` without an explicit whitelist.
+
+To authorize `xypriss-security` to read its encryption keys and environment settings (`ENC_SECRET_KEY`, `ENC_SECRET_SEED`, `ENC_SECRET_SALT`, `XYPRISS_SEC_WARNINGS`), declare them in your application's `xypriss.config.jsonc` (or `xypriss.config.json`):
+
+```jsonc
+{
+  "$env": {
+    "packages": {
+      "xypriss-security": {
+        "whitelist": [
+          "ENC_SECRET_KEY",
+          "ENC_SECRET_SEED",
+          "ENC_SECRET_SALT",
+          "XYPRISS_SEC_WARNINGS"
+        ],
+        "inheritGlobal": false
+      }
+    }
+  }
+}
+```
+
+For more details on package sandboxing and environment policies, see the [XyPriss Environment Security Shield Documentation](https://xypriss.nehonix.com/docs/security/environment-shield).
+
 ## Performance Benchmarks
 
 XyPriss Security leverages a multi-threaded Go core, consistently outperforming native JavaScript implementations:

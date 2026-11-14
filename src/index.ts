@@ -8,6 +8,7 @@
  ****************************************************************************/
 
 export { Password } from "./core/Password";
+export * from "./utils/env"
 
 /**
  * # XyPriss Security

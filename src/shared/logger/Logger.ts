@@ -22,6 +22,7 @@ import type {
 import { DEFAULT_LOGGER_CONFIG, LoggerConfig } from "./DEFAULT_LOGGER_CONFIG";
 import { DEFAULT_PALETTE } from "./DEFAULT_PALETTE";
 import { mergeWithDefaults } from "./mergeWithDefaults";
+import { getEnv } from "../../utils/env";
 
 // ─────────────────────────────────────────────
 // ANSI palette
@@ -35,8 +36,7 @@ const C = DEFAULT_PALETTE
  * most modern runners fully support ANSI but often report isTTY = false.
  * To disable colors, set the NO_COLOR env var (https://no-color.org).
  */
-const canColor = (): boolean =>
-    typeof process === "undefined" || !("NO_COLOR" in process.env);
+const canColor = (): boolean => getEnv("NO_COLOR") === undefined;
 
 // ─────────────────────────────────────────────
 // Level rank  (no badge — we display component, not level label)

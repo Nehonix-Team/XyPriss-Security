@@ -116,3 +116,35 @@ const stats = Cache.getUltraStats;
 console.log(stats.hitRate);
 console.log(stats.memoryUsage.used);
 ```
+
+---
+
+## Production Security & Environment Whitelisting
+
+When running under XyPriss, UFSIMC automatically resolves encryption keys and seeds through the official `__sys__.__env__` API.
+
+To provide dedicated production encryption keys and avoid ephemeral generated key warnings, declare your secrets in your environment (`.env`) and authorize `xypriss-security` in `xypriss.config.jsonc` as documented in the [XyPriss Environment Security Shield Documentation](https://xypriss.nehonix.com/docs/security/environment-shield):
+
+```jsonc
+{
+  "$env": {
+    "packages": {
+      "xypriss-security": {
+        "whitelist": [
+          "ENC_SECRET_KEY",
+          "ENC_SECRET_SEED",
+          "ENC_SECRET_SALT",
+          "XYPRISS_SEC_WARNINGS"
+        ],
+        "inheritGlobal": false
+      }
+    }
+  }
+}
+```
+
+- `ENC_SECRET_KEY`: Pre-shared master encryption key (hex or raw string).
+- `ENC_SECRET_SEED` & `ENC_SECRET_SALT`: Key derivation seed and salt used when a static key is not provided.
+- `XYPRISS_SEC_WARNINGS`: Set to `"silent"` to suppress development warnings regarding ephemeral key generation.
+
+For full specifications on package sandboxing, see [XyPriss Environment Security Shield](https://xypriss.nehonix.com/docs/security/environment-shield).
