@@ -42,7 +42,21 @@ build_target() {
         -o "$DIST_DIR/$OUT_FILE" \
         main.go
 
-    echo "✅ Successfully generated: $OUT_FILE"
+    echo "✅ Successfully generated binary: $OUT_FILE"
+
+    # Compress to .gz archive (Universal high-efficiency distribution)
+    echo "🗜️  Compressing $OUT_FILE to ${OUT_FILE}.gz..."
+    gzip -9 -c "$DIST_DIR/$OUT_FILE" > "$DIST_DIR/${OUT_FILE}.gz"
+    echo "📦 Generated archive: ${OUT_FILE}.gz ($(du -h "$DIST_DIR/${OUT_FILE}.gz" | cut -f1))"
+
+    # For Windows (or general zip compatibility), also package as .zip
+    if command -v zip &> /dev/null; then
+        (
+            cd "$DIST_DIR"
+            zip -9 -q "libxypriss_core-${LABEL}.zip" "$OUT_FILE"
+        )
+        echo "📦 Generated archive: libxypriss_core-${LABEL}.zip ($(du -h "$DIST_DIR/libxypriss_core-${LABEL}.zip" | cut -f1))"
+    fi
 }
 
 # --- Target Matrix ---
